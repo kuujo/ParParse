@@ -190,6 +190,8 @@ class ParParse {
     $usage .= "\n";
     $help[] = $usage;
 
+    $help[] = '-h|--help Display command usage information.';
+
     $arguments = $options = array();
     foreach ($this->elements as $element) {
       if ($element->getType() === 'argument') {
@@ -482,7 +484,7 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
    *   The called object.
    */
   public function setHelpText($help) {
-    if (!is_string($label)) {
+    if (!is_string($help)) {
       throw new InvalidArgumentException('Invalid help text for '. $this->type .' '. $this->name .'. Help text must be a string.');
     }
     $this->helpText = $help;
