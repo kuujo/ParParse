@@ -1218,9 +1218,28 @@ class ParParseResult {
    * Magic method: Gets a result value.
    */
   public function __get($name) {
+    try {
+      return $this->get($name);
+    }
+    catch (ParParseException $e) {
+      // Do nothing if the result doesn't exist.
+    }
+  }
+
+  /**
+   * Gets a parser result.
+   *
+   * @param string $name
+   *   The name of the element whose result to return.
+   *
+   * @return mixed
+   *   The element result.
+   */
+  public function get($name) {
     if (isset($this->results[$name])) {
       return $this->results[$name];
     }
+    throw new ParParseException('No result with the name '. $name .' exists.');
   }
 
 }
