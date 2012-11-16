@@ -884,10 +884,10 @@ class ParParseFlag extends ParParseParsableElement implements ParParseAliasableI
       if ($args[$i] == '--'. $this->name || $args[$i] == '-'. $this->alias) {
         unset($args[$i]);
         $this->invokeActions();
-        return TRUE;
+        return $this->executeCallbacks(TRUE);
       }
     }
-    return FALSE;
+    return $this->executeCallbacks(FALSE);
   }
 
   /**

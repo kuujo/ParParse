@@ -74,13 +74,43 @@ itself defaults to `NULL`).
 
 ```php
 $parser->addParameter('foo')
-  ->setAlias('f)
+  ->setAlias('f')
   ->setDataType('int')
   ->setDefaultValue(0)
   ->setHelpText('Foo does bar.');
 ```
 
 Examples: `myscript --foo=1` `myscript -f 1`
+
+### Processing results
+All types of elements support arbitrary data processing callbacks.
+Simply use the `addCallback()` method. When a valid value is found the
+callbacks will be executed in the order in which they were added. Note
+that callbacks are *not* executed for default values.
+
+```php
+// Callbacks should return the processed value. This allows us to use
+// many standard PHP functions as well.
+function round_foo($value) {
+  return round($value, 2);
+}
+
+$parser->addArgument('foo')
+  ->setDataType('float')
+  ->addCallback('round_foo');
+
+$parser->addArgument('bar')
+  ->setDataType('string')
+  ->addCallback('ucfirst');
+```
+
+Example: `myscript.php 1.2345 baz`
+
+```php
+$results = $parser->parse();
+echo $results->get('foo'); // 1.23
+echo $results->get('bar'); // Baz
+```
 
 ### Accessing results
 
