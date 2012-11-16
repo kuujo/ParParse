@@ -298,7 +298,7 @@ abstract class ParParseParsableElement {
   protected function executeCallbacks($value) {
     foreach ($this->callbacks as $callback) {
       if (!is_callable($callback)) {
-        throw new InvalidArgumentException('Invalid callback '. $callback ' for '. $this-> type .' '. $this->name .'. Callbacks must be callable.');
+        throw new InvalidArgumentException('Invalid callback '. $callback .' for '. $this-> type .' '. $this->name .'. Callbacks must be callable.');
       }
       $value = $callback($value);
     }
@@ -627,6 +627,9 @@ class ParParseFlag extends ParParseParsableElement {
    *   The called object.
    */
   public function setAlias($alias) {
+    if (!isset($alias)) {
+      return $this;
+    }
     if (!is_string($alias)) {
       throw new InvalidArgumentException('Invalid alias. Alias must be a string.');
     }
@@ -746,6 +749,9 @@ class ParParseParameter extends ParParseParsableElement {
    *   The called object.
    */
   public function setAlias($alias) {
+    if (!isset($alias)) {
+      return $this;
+    }
     if (!is_string($alias)) {
       throw new InvalidArgumentException('Invalid alias. Alias must be a string.');
     }
@@ -820,13 +826,17 @@ $parser->addArgument('partner')
   ->setLabel('Partner');
 $parser->addArgument('categories')
   ->setLabel('Category')
-  ->setCardinality(ParParse::CARDINALITY_UNLIMITED)
+  ->setCardinality(ParParseArgument::CARDINALITY_UNLIMITED)
   ->setDefaultValue(NULL);
 
-$parser->addOption('channel')
+$parser->addFlag('someflag')
+  ->setLabel('Some flag')
+  ->setAlias('s');
+
+$parser->addParameter('channel')
   ->setLabel('Channel')
-  ->addAlias('c');
-$parser->addOption('inbound')
+  ->setAlias('c');
+$parser->addParameter('inbound')
   ->setLabel('Inbound address')
   ->setAlias('i');
 
