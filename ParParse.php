@@ -660,6 +660,24 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
   private $defaultValue;
 
   /**
+   * Constructor.
+   *
+   * @param string $name
+   *   The element's unique machine-name.
+   * @param array $options
+   *   An associative array of additional element options.
+   */
+  public function __construct($name, array $options = array()) {
+    if (strpos($name, '--') === 0) {
+      throw new InvalidArgumentException($name .' is not a valid argument.');
+    }
+    else if (strpos($name, '-') === 0) {
+      throw new InvalidArgumentException($name .' is not a valid argument.');
+    }
+    parent::__construct($name, $options);
+  }
+
+  /**
    * Parses flags from command-line arguments.
    *
    * @param array $args
@@ -869,6 +887,24 @@ class ParParseFlag extends ParParseParsableElement implements ParParseAliasableI
   private $actions = array();
 
   /**
+   * Constructor.
+   *
+   * @param string $name
+   *   The element's unique machine-name.
+   * @param array $options
+   *   An associative array of additional element options.
+   */
+  public function __construct($name, array $options = array()) {
+    if (strpos($name, '--') === 0) {
+      $name = substr($name, 2);
+    }
+    else if (strpos($name, '-') === 0) {
+      throw new InvalidArgumentException($name .' is not a valid flag.');
+    }
+    parent::__construct($name, $options);
+  }
+
+  /**
    * Parses flags from command-line arguments.
    *
    * @param array $args
@@ -915,6 +951,12 @@ class ParParseFlag extends ParParseParsableElement implements ParParseAliasableI
     }
     if (!is_string($alias)) {
       throw new InvalidArgumentException('Invalid alias. Alias must be a string.');
+    }
+    else if (strpos($alias, '--') === 0) {
+      throw new InvalidArgumentException($alias .' is not a valid alias.');
+    }
+    else if (strpos($alias, '-') === 0) {
+      $alias = substr($alias, 1);
     }
     $this->alias = $alias;
     return $this;
@@ -992,6 +1034,24 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
    * @var string|null
    */
   private $defaultValue = NULL;
+
+  /**
+   * Constructor.
+   *
+   * @param string $name
+   *   The element's unique machine-name.
+   * @param array $options
+   *   An associative array of additional element options.
+   */
+  public function __construct($name, array $options = array()) {
+    if (strpos($name, '--') === 0) {
+      $name = substr($name, 2);
+    }
+    else if (strpos($name, '-') === 0) {
+      throw new InvalidArgumentException($name .' is not a valid parameter.');
+    }
+    parent::__construct($name, $options);
+  }
 
   /**
    * Parses parameters from command-line arguments.
@@ -1102,6 +1162,12 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
     }
     if (!is_string($alias)) {
       throw new InvalidArgumentException('Invalid alias. Alias must be a string.');
+    }
+    else if (strpos($alias, '--') === 0) {
+      throw new InvalidArgumentException($alias .' is not a valid alias.');
+    }
+    else if (strpos($alias, '-') === 0) {
+      $alias = substr($alias, 1);
     }
     $this->alias = $alias;
     return $this;
