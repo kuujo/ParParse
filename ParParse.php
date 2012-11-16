@@ -702,11 +702,8 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
         break;
       case self::CARDINALITY_UNLIMITED:
         $values = array();
-        $num_args = count($args);
-        $i = 0;
-        while ($i < count($args)) {
+        for ($i = 0; $i < $num_args; $i++) {
           if (strpos($args[$i], '-') === 0) {
-            $i++;
             continue;
           }
           else {
@@ -721,9 +718,9 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
         }
 
         $values = array();
-        while ($i < count($args)) {
+        for ($i = 0; $i < $num_args; $i++) {
           if (strpos($args[$i], '-') === 0) {
-            $i++;
+            continue;
           }
           else {
             $values[] = $this->executeCallbacks($this->applyDataType($args[$i]));
@@ -1169,18 +1166,3 @@ class ParParseException extends Exception {}
  * Missing argument exception.
  */
 class ParParseMissingArgumentException extends ParParseException {}
-
-$parser = new ParParse();
-$parser->addArgument('partner')
-  ->setDataType(ParParseTypeableInterface::DATATYPE_STRING);
-$parser->addArgument('category')
-  ->setCardinality(ParParseArgument::CARDINALITY_UNLIMITED);
-
-$parser->addFlag('someflag')
-  ->setAlias('s');
-
-$parser->addParameter('channel')
-  ->setAlias('c')
-  ->setDefaultValue('truth');
-$parser->addParameter('inbound')
-  ->setAlias('i');
