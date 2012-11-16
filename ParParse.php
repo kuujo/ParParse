@@ -1302,6 +1302,9 @@ class ParParseResult {
    *   The element result.
    */
   public function get($name) {
+    if (strpos($name, '--') === 0) {
+      $name = substr($name, 2);
+    }
     if (isset($this->results[$name])) {
       return $this->results[$name];
     }
