@@ -266,7 +266,7 @@ class ParParse {
    */
   private function printParameter(ParParseParameter $param) {
     if ($param->getAlias()) {
-      return ' [-'. $param->getAlias() .'|--'. $param->getName() .'=<value>]';
+      return ' [-'. $param->getAlias() .'|--'. $param->getName() .'=<'. $param->getValueDescriptor() .'>]';
     }
     return ' [--'. $param->getName() .'=<value>]';
   }
@@ -1065,6 +1065,14 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
   private $defaultValue = NULL;
 
   /**
+   * The parameter value descriptor, used to build help text.
+   * Defaults to 'value'.
+   *
+   * @var string
+   */
+  private $valueDescriptor = 'value';
+
+  /**
    * Constructor.
    *
    * @param string $name
@@ -1223,6 +1231,33 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
    */
   public function setDefaultValue($default) {
     $this->defaultValue = $default;
+    return $this;
+  }
+
+  /**
+   * Returns the value descriptor.
+   *
+   * @return string
+   *   The value descriptor.
+   */
+  public function getValueDescriptor() {
+    return $this->valueDescriptor;
+  }
+
+  /**
+   * Sets the value descriptor, used to generate help text.
+   *
+   * @param string $descriptor
+   *   The value descriptor.
+   *
+   * @return ParParseParameter
+   *   The called object.
+   */
+  public function setValueDescriptor($descriptor) {
+    if (!is_string($descriptor)) {
+      throw new InvalidArgumentException('Parameter value descriptor must be a string.');
+    }
+    $this->valueDescriptor = $descriptor;
     return $this;
   }
 
