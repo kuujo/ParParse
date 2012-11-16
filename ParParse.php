@@ -346,13 +346,13 @@ interface ParParseTypeableInterface {
    * Constants representing the relationship between string names
    * and the datatypes supported by PHP's settype() function.
    */
-  const DATATYPE_BOOLEAN = 'bool',
-        DATATYPE_INTEGER = 'int',
-        DATATYPE_FLOAT = 'float',
-        DATATYPE_STRING = 'string',
-        DATATYPE_ARRAY = 'array',
-        DATATYPE_OBJECT = 'object',
-        DATATYPE_NULL = 'null';
+  const DATATYPE_BOOLEAN = 'bool';
+  const DATATYPE_INTEGER = 'int';
+  const DATATYPE_FLOAT = 'float';
+  const DATATYPE_STRING = 'string';
+  const DATATYPE_ARRAY = 'array';
+  const DATATYPE_OBJECT = 'object';
+  const DATATYPE_NULL = 'null';
 
   /**
    * Sets the argument's data type.
@@ -667,7 +667,9 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
    *   The flag value.
    */
   public function parse(array &$args) {
-    if (!isset($args[0])) {
+    $args = array_values($args);
+    $num_args = count($args);
+    if ($num_args === 0) {
       throw new ParParseMissingArgumentException('Missing argument '. $this->name .'.');
     }
     else {
@@ -767,7 +769,8 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
       return $value;
     }
     if (in_array($this->dataType, self::$dataTypes)) {
-      return settype($value, $this->dataType);
+      settype($value, $this->dataType);
+      return $value;
     }
     else {
       if (!class_exists($this->dataType)) {
@@ -876,6 +879,7 @@ class ParParseFlag extends ParParseParsableElement implements ParParseAliasableI
    *   The flag value.
    */
   public function parse(array &$args) {
+    $args = array_values($args);
     $num_args = count($args);
     for ($i = 0; $i < $num_args; $i++) {
       if ($args[$i] == '--'. $this->name || $args[$i] == '-'. $this->alias) {
@@ -1000,6 +1004,7 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
    *   The parameter value.
    */
   public function parse(array &$args) {
+    $args = array_values($args);
     $num_args = count($args);
     for ($i = 0; $i < $num_args; $i++) {
       if (strpos($args[$i], '--'. $this->name) === 0) {
@@ -1062,7 +1067,8 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
       return $value;
     }
     if (in_array($this->dataType, self::$dataTypes)) {
-      return settype($value, $this->dataType);
+      settype($value, $this->dataType);
+      return $value;
     }
     else {
       if (!class_exists($this->dataType)) {
@@ -1165,7 +1171,8 @@ class ParParseException extends Exception {}
 class ParParseMissingArgumentException extends ParParseException {}
 
 $parser = new ParParse();
-$parser->addArgument('partner');
+$parser->addArgument('partner')
+  ->setDataType(ParParseTypeableInterface::DATATYPE_STRING);
 $parser->addArgument('category')
   ->setCardinality(ParParseArgument::CARDINALITY_UNLIMITED);
 
@@ -1173,11 +1180,7 @@ $parser->addFlag('someflag')
   ->setAlias('s');
 
 $parser->addParameter('channel')
-  ->setAlias('c');
+  ->setAlias('c')
+  ->setDefaultValue('truth');
 $parser->addParameter('inbound')
   ->setAlias('i');
-
-$results = $parser->parse();
-
-$categories = $results->categories;
-
