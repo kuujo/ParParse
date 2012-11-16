@@ -259,9 +259,144 @@ class ParParse {
 }
 
 /**
+ * Interface for parsable elements.
+ */
+interface ParParseParsableElementInterface {
+
+  /**
+   * Parses elements from command-line arguments.
+   *
+   * @param array $args
+   *   An array of command-line arguments.
+   *
+   * @return mixed
+   *   The element value.
+   */
+  public function parse(array &$args);
+
+  /**
+   * Returns the element type.
+   *
+   * @return string
+   *   The element type.
+   */
+  public function getType();
+
+  /**
+   * Returns the element's machine-readable name.
+   *
+   * @return string
+   *   The element's machine-readable name.
+   */
+  public function getName();
+
+  /**
+   * Returns help text for the element.
+   *
+   * @return string
+   *   The element's command-line help text.
+   */
+  public function getHelpText();
+
+  /**
+   * Sets the help text for the element.
+   *
+   * @param string $help
+   *   The element's help text.
+   *
+   * @return ParParseParsableElementInterface
+   *   The called object.
+   */
+  public function setHelpText($help);
+
+}
+
+/**
+ * Interface for elements that support aliases.
+ */
+interface ParParseAliasableInterface {
+
+  /**
+   * Returns the element's short alias.
+   *
+   * @return string
+   *   The element's short alias.
+   */
+  public function getAlias();
+
+  /**
+   * Sets the element's short alias.
+   *
+   * @param string $alias
+   *   The element's short alias.
+   *
+   * @return ParParseElement
+   *   The called object.
+   */
+  public function setAlias($alias);
+
+}
+
+/**
+ * Interface for elements that can convert values by data types.
+ */
+interface ParParseTypeableInterface {
+
+  /**
+   * Constants representing the relationship between string names
+   * and the datatypes supported by PHP's settype() function.
+   */
+  const DATATYPE_BOOLEAN = 'bool',
+        DATATYPE_INTEGER = 'int',
+        DATATYPE_FLOAT = 'float',
+        DATATYPE_STRING = 'string',
+        DATATYPE_ARRAY = 'array',
+        DATATYPE_OBJECT = 'object',
+        DATATYPE_NULL = 'null';
+
+  /**
+   * Sets the argument's data type.
+   *
+   * @param string $data_type
+   *   The data type.
+   *
+   * @return ParParseArgument
+   *   The called object.
+   */
+  public function setDataType($data_type);
+
+}
+
+/**
+ * Interface for elements that support default values.
+ */
+interface ParParseDefaultableInterface {
+
+  /**
+   * Returns the element's default value.
+   *
+   * @return mixed
+   *   The element's default value.
+   */
+  public function getDefaultValue();
+
+  /**
+   * Sets the element's default value.
+   *
+   * @param mixed $default
+   *   The default value.
+   *
+   * @return ParParseElement
+   *   The called object.
+   */
+  public function setDefaultValue($default);
+
+}
+
+/**
  * Base class for all parsable command-line elements.
  */
-abstract class ParParseParsableElement {
+abstract class ParParseParsableElement implements ParParseParsableElementInterface {
 
   /**
    * The parsable element's type. This should be set in the class definition
@@ -277,13 +412,6 @@ abstract class ParParseParsableElement {
    * @var string
    */
   protected $name;
-
-  /**
-   * The element's label.
-   *
-   * @var string
-   */
-  protected $label = '';
 
   /**
    * The element's command-line help text.
@@ -332,33 +460,6 @@ abstract class ParParseParsableElement {
    */
   public function getName() {
     return $this->name;
-  }
-
-  /**
-   * Returns the element's human-readable label.
-   *
-   * @return string
-   *   The element's human-readable label.
-   */
-  public function getLabel() {
-    return $this->label;
-  }
-
-  /**
-   * Sets the element's human-readable label.
-   *
-   * @param string $label
-   *   The element's human-readable label.
-   *
-   * @return ParParseElement
-   *   The called object.
-   */
-  public function setLabel($label) {
-    if (!is_string($label)) {
-      throw new InvalidArgumentException('Invalid label for '. $this->type .' '. $this->name .'. Label must be a string.');
-    }
-    $this->label = $label;
-    return $this;
   }
 
   /**
@@ -420,17 +521,6 @@ abstract class ParParseParsableElement {
     }
     return $value;
   }
-
-  /**
-   * Parses command line options for the element.
-   *
-   * @param array $args
-   *   An array of command-line arguments.
-   *
-   * @return mixed
-   *   The argument value.
-   */
-  abstract public function parse(array &$args);
 
   /**
    * Magic method: Gets an arbitrary element option.
@@ -505,7 +595,7 @@ abstract class ParParseParsableElement {
 /**
  * Represents an argument.
  */
-class ParParseArgument extends ParParseParsableElement {
+class ParParseArgument extends ParParseParsableElement implements ParParseTypeableInterface, ParParseDefaultableInterface {
 
   /**
    * Indicates unlimited cardinality.
@@ -520,6 +610,28 @@ class ParParseArgument extends ParParseParsableElement {
    * @var string
    */
   protected $type = 'argument';
+
+  /**
+   * The argument's data type.
+   *
+   * @var string|null
+   */
+  private $dataType = NULL;
+
+  /**
+   * A list of available data types for settype().
+   *
+   * @var array
+   */
+  private static $dataTypes = array(
+    ParParseTypeableInterface::DATATYPE_BOOLEAN,
+    ParParseTypeableInterface::DATATYPE_INTEGER,
+    ParParseTypeableInterface::DATATYPE_FLOAT,
+    ParParseTypeableInterface::DATATYPE_STRING,
+    ParParseTypeableInterface::DATATYPE_ARRAY,
+    ParParseTypeableInterface::DATATYPE_OBJECT,
+    ParParseTypeableInterface::DATATYPE_NULL,
+  );
 
   /**
    * Indicates the number of arguments expected.
@@ -582,7 +694,7 @@ class ParParseArgument extends ParParseParsableElement {
           else {
             $value = $args[$i];
             unset($args[$i]);
-            return $this->executeCallbacks($value);
+            return $this->executeCallbacks($this->applyDataType($value));
           }
         }
         break;
@@ -596,7 +708,7 @@ class ParParseArgument extends ParParseParsableElement {
             continue;
           }
           else {
-            $values[] = $this->executeCallbacks($args[$i]);
+            $values[] = $this->executeCallbacks($this->applyDataType($args[$i]));
             unset($args[$i]);
           }
         }
@@ -612,7 +724,7 @@ class ParParseArgument extends ParParseParsableElement {
             $i++;
           }
           else {
-            $values[] = $this->executeCallbacks($args[$i]);
+            $values[] = $this->executeCallbacks($this->applyDataType($args[$i]));
             unset($args[$i]);
           }
 
@@ -621,6 +733,47 @@ class ParParseArgument extends ParParseParsableElement {
           }
         }
         return $values;
+    }
+  }
+
+  /**
+   * Sets the argument's data type.
+   *
+   * @param string $data_type
+   *   The data type.
+   *
+   * @return ParParseArgument
+   *   The called object.
+   */
+  public function setDataType($data_type) {
+    if (!in_array($data_type, self::$dataTypes) && !class_exists($data_type)) {
+      throw new InvalidArgumentException('Invalid data type '. $data_type .'. Data type must be a PHP type or available class.');
+    }
+    $this->dataType = $data_type;
+    return $this;
+  }
+
+  /**
+   * Applies the current data type to the given value.
+   *
+   * @param string $value
+   *   The value to which to apply the data type.
+   *
+   * @return mixed
+   *   The new value with the data type applied.
+   */
+  private function applyDataType($value) {
+    if (!isset($this->dataType)) {
+      return $value;
+    }
+    if (in_array($this->dataType, self::$dataTypes)) {
+      return settype($value, $this->dataType);
+    }
+    else {
+      if (!class_exists($this->dataType)) {
+        throw new InvalidArgumentException('Invalid data type '. $this->dataType .'. Data type must be a PHP type or available class.');
+      }
+      return new $this->dataType($value);
     }
   }
 
@@ -690,7 +843,7 @@ class ParParseArgument extends ParParseParsableElement {
 /**
  * Represents a flag.
  */
-class ParParseFlag extends ParParseParsableElement {
+class ParParseFlag extends ParParseParsableElement implements ParParseAliasableInterface {
 
   /**
    * Indicates the element type.
@@ -792,7 +945,7 @@ class ParParseFlag extends ParParseParsableElement {
 /**
  * Represents a parameter.
  */
-class ParParseParameter extends ParParseParsableElement {
+class ParParseParameter extends ParParseParsableElement implements ParParseAliasableInterface, ParParseTypeableInterface, ParParseDefaultableInterface {
 
   /**
    * Indicates the element type.
@@ -800,6 +953,28 @@ class ParParseParameter extends ParParseParsableElement {
    * @var string
    */
   protected $type = 'parameter';
+
+  /**
+   * The argument's data type.
+   *
+   * @var string|null
+   */
+  private $dataType = NULL;
+
+  /**
+   * A list of available data types for settype().
+   *
+   * @var array
+   */
+  private static $dataTypes = array(
+    ParParseTypeableInterface::DATATYPE_BOOLEAN,
+    ParParseTypeableInterface::DATATYPE_INTEGER,
+    ParParseTypeableInterface::DATATYPE_FLOAT,
+    ParParseTypeableInterface::DATATYPE_STRING,
+    ParParseTypeableInterface::DATATYPE_ARRAY,
+    ParParseTypeableInterface::DATATYPE_OBJECT,
+    ParParseTypeableInterface::DATATYPE_NULL,
+  );
 
   /**
    * The parameter's short alias. Defaults to NULL.
@@ -851,9 +1026,50 @@ class ParParseParameter extends ParParseParsableElement {
         $value = substr($args[$i], strlen($prefix));
       }
       unset($args[$i]);
-      return $this->executeCallbacks($value);
+      return $this->executeCallbacks($this->applyDataType($value));
     }
     return $this->defaultValue;
+  }
+
+  /**
+   * Sets the argument's data type.
+   *
+   * @param string $data_type
+   *   The data type.
+   *
+   * @return ParParseArgument
+   *   The called object.
+   */
+  public function setDataType($data_type) {
+    if (!in_array($data_type, self::$dataTypes) && !class_exists($data_type)) {
+      throw new InvalidArgumentException('Invalid data type '. $data_type .'. Data type must be a PHP type or available class.');
+    }
+    $this->dataType = $data_type;
+    return $this;
+  }
+
+  /**
+   * Applies the current data type to the given value.
+   *
+   * @param string $value
+   *   The value to which to apply the data type.
+   *
+   * @return mixed
+   *   The new value with the data type applied.
+   */
+  private function applyDataType($value) {
+    if (!isset($this->dataType)) {
+      return $value;
+    }
+    if (in_array($this->dataType, self::$dataTypes)) {
+      return settype($value, $this->dataType);
+    }
+    else {
+      if (!class_exists($this->dataType)) {
+        throw new InvalidArgumentException('Invalid data type '. $this->dataType .'. Data type must be a PHP type or available class.');
+      }
+      return new $this->dataType($value);
+    }
   }
 
   /**
@@ -949,21 +1165,16 @@ class ParParseException extends Exception {}
 class ParParseMissingArgumentException extends ParParseException {}
 
 $parser = new ParParse();
-$parser->addArgument('partner')
-  ->setLabel('Partner');
+$parser->addArgument('partner');
 $parser->addArgument('category')
-  ->setLabel('Category')
   ->setCardinality(ParParseArgument::CARDINALITY_UNLIMITED);
 
 $parser->addFlag('someflag')
-  ->setLabel('Some flag')
   ->setAlias('s');
 
 $parser->addParameter('channel')
-  ->setLabel('Channel')
   ->setAlias('c');
 $parser->addParameter('inbound')
-  ->setLabel('Inbound address')
   ->setAlias('i');
 
 $results = $parser->parse();
