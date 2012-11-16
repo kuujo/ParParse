@@ -10,11 +10,7 @@ class ParParse {
    *
    * @var array
    */
-  private $elements = array(
-    'flag' => array(),
-    'parameter' => array(),
-    'argument' => array(),
-  );
+  private $elements = array();
 
   /**
    * An associative array of unique parser names. This is used to ensure
@@ -34,14 +30,11 @@ class ParParse {
    *   The added element.
    */
   public function addElement(ParParseParsableElement $element) {
-    if (array_key_exists($element->getName(), $this->uniqueNames)) {
+    if (array_search($element->getName(), $this->uniqueNames) !== FALSE) {
       throw new ParParseException('Cannot duplicate element name '. $element->getName() .'. An element with that name already exists.');
     }
-    if (!isset($this->elements[$element->getType()])) {
-      throw new ParParseException('Invalid element type '. $element->getType() .'.');
-    }
-    $this->elements[$element->getType()][] = $element;
-    $this->uniqueNames[$element->getName()] = TRUE;
+    $this->elements[] = $element;
+    $this->uniqueNames[] = $element->getName();
     return $element;
   }
 
@@ -106,38 +99,156 @@ class ParParse {
     if (!isset($args)) {
       global $argv;
       if (!isset($argv)) {
-        throw new Exception('Cannot parse arguments. No arguments given.');
+        throw new ArgParserException('Cannot parse arguments. No arguments given.');
       }
-      $args = array_slice($argv, 1);
+      else {
+        $args = $argv;
+      }
     }
 
-    $results = array();
-    foreach ($this->elements['flag'] as $flag) {
-      $results[$flag->getName()] = $flag->parse($args);
-    }
-    foreach ($this->elements['parameter'] as $param) {
-      $results[$param->getName()] = $param->parse($args);
+    $command = $args[0];
+    $args = array_slice($args, 1);
+
+    // First check for the special '--help' option.
+    if (in_array('--help', $args) || in_array('-h', $args)) {
+      $this->printHelpText($command);
     }
 
-    // Arguments are treated a little differently. Only the last argument
-    // in the set can have missing or default values. This is because
-    // missing arguments earlier in the process would ruin the order.
-    $num_args = count($this->elements['argument']);
-    for ($i = 0; $i < $num_args; $i++) {
-      $arg = $this->elements['argument'][$i];
-      try {
-        $results[$arg->getName()] = $arg->parse($args);
+    // Note that the order in which elements are parsed is essential to
+    // ensure conflicts do not arise. We have to parse flags, parameters,
+    // and then arguments, so we separate the elements and process separately.
+    try {
+      $results = $flags = $parameters = $arguments = array();
+      foreach ($this->elements as $element) {
+        $element_type = $element->getType();
+        if (isset(${$element_type.'s'})) {
+          ${$element_type.'s'}[] = $element;
+        }
       }
-      catch (ParParseMissingArgumentException $e) {
-        if (isset($this->elements['argument'][$i+1])) {
-          throw $e;
+
+      // Process flags.
+      foreach ($flags as $flag) {
+        $results[$flag->getName()] = $flag->parse($args);
+      }
+
+      // Process parameters.
+      foreach ($parameters as $param) {
+        $results[$param->getName()] = $param->parse($args);
+      }
+
+      // Arguments are treated a little differently. Only the last argument
+      // in the set can have missing or default values. This is because
+      // missing arguments earlier in the process would ruin the order.
+      $num_args = count($arguments);
+      for ($i = 0; $i < $num_args; $i++) {
+        $arg = $arguments[$i];
+        try {
+          $results[$arg->getName()] = $arg->parse($args);
         }
-        else {
-          $results[$arg->getName()] = $arg->getDefaultValue();
+        catch (ParParseMissingArgumentException $e) {
+          if (isset($arguments[$i+1])) {
+            throw $e;
+          }
+          else {
+            $results[$arg->getName()] = $arg->getDefaultValue();
+          }
         }
+      }
+      return new ParParseResult($results);
+    }
+    catch (ParParseException $e) {
+      $this->printHelpText($command);
+      exit(1);
+    }
+  }
+
+  /**
+   * Prints command-line help text.
+   */
+  private function printHelpText($command) {
+    $help = array();
+    $usage = 'Usage: '. $command;
+    foreach ($this->elements as $element) {
+      switch ($element->getType()) {
+        case 'argument':
+          $usage .= $this->printArgument($element);
+          break;
+        case 'flag':
+          $usage .= $this->printFlag($element);
+          break;
+        case 'parameter':
+          $usage .= $this->printParameter($element);
+          break;
       }
     }
-    return new ParParseResult($results);
+
+    $usage .= "\n";
+    $help[] = $usage;
+
+    $arguments = $options = array();
+    foreach ($this->elements as $element) {
+      if ($element->getType() === 'argument') {
+        $arguments[] = $element;
+      }
+      else {
+        $options[] = $element;
+      }
+    }
+
+    $indent = '  ';
+    $help[] = 'Arguments:'."\n";
+    foreach ($arguments as $arg) {
+      $help[] = $indent . $arg->getName() . $indent . $arg->getHelpText() . "\n";
+    }
+
+    $help[] = 'Options:'."\n";
+    foreach ($options as $option) {
+      $opt_text = '--'. $option->getName();
+      if ($option->getAlias()) {
+        $opt_text = '-'. $option->getAlias() .' '. $opt_text;
+      }
+      $opt_text .= $indent . $option->getHelpText();
+      $opt_text .= "\n";
+      $help[] = $indent . $opt_text;
+    }
+    echo implode('', $help);
+  }
+
+  /**
+   * Returns command-line help text for an argument.
+   */
+  private function printArgument(ParParseArgument $arg) {
+    $usage = '';
+    $cardinality = $arg->getCardinality();
+    if ($cardinality == ParParseArgument::CARDINALITY_UNLIMITED) {
+      $usage .= ' '. $arg->getName() .' ['. $arg->getName() .' ...]';
+    }
+    else {
+      for ($i = 0; $i < $cardinality; $i++) {
+        $usage .= ' '. $arg->getName();
+      }
+    }
+    return $usage;
+  }
+
+  /**
+   * Returns command-line help text for a flag.
+   */
+  private function printFlag(ParParseFlag $flag) {
+    if ($flag->getAlias()) {
+      return ' [-'. $flag->getAlias() .'|--'. $flag->getName() .']';
+    }
+    return ' [--'. $flag->getName() .']';
+  }
+
+  /**
+   * Returns command-line help text for a parameter.
+   */
+  private function printParameter(ParParseParameter $param) {
+    if ($param->getAlias()) {
+      return ' [-'. $param->getAlias() .'|--'. $param->getName() .'=<value>]';
+    }
+    return ' [--'. $param->getName() .'=<value>]';
   }
 
 }
@@ -375,7 +486,7 @@ abstract class ParParseParsableElement {
    */
   public function setOption($option, $value) {
     if (strpos($option, '_') !== FALSE) {
-      $option = array_map('ucfirst', explode('_', $option));
+      $option = implode('', array_map('ucfirst', explode('_', $option)));
     }
     $method = 'set'. ucfirst($option);
     if (method_exists($this, $method)) {
@@ -824,7 +935,7 @@ class ParParseMissingArgumentException extends ParParseException {}
 $parser = new ParParse();
 $parser->addArgument('partner')
   ->setLabel('Partner');
-$parser->addArgument('categories')
+$parser->addArgument('category')
   ->setLabel('Category')
   ->setCardinality(ParParseArgument::CARDINALITY_UNLIMITED)
   ->setDefaultValue(NULL);
