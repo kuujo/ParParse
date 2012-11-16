@@ -1,6 +1,8 @@
 ParParse
 ========
 
+**MIT License**
+
 ParParse is a command-line arguments parser written in PHP. It both
 lightweight and feature rich, with all classes contained in a single file.
 So, to get started all you need to do is copy _ParParse.php_ to your
