@@ -1,7 +1,20 @@
 <?php
 
 /**
+ * This file is part of the ParParse package.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ *
+ * @author     Jordan Halterman <jordan.halterman@gmail.com>
+ * @copyright  2012 Jordan Halterman
+ * @license    MIT License
+ */
+
+/**
  * Core PhpARgumentsPARSEr.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParse {
 
@@ -262,6 +275,8 @@ class ParParse {
 
 /**
  * Interface for parsable elements.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 interface ParParseParsableElementInterface {
 
@@ -315,6 +330,8 @@ interface ParParseParsableElementInterface {
 
 /**
  * Interface for elements that support aliases.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 interface ParParseAliasableInterface {
 
@@ -341,6 +358,8 @@ interface ParParseAliasableInterface {
 
 /**
  * Interface for elements that can convert values by data types.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 interface ParParseTypeableInterface {
 
@@ -371,6 +390,8 @@ interface ParParseTypeableInterface {
 
 /**
  * Interface for elements that support default values.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 interface ParParseDefaultableInterface {
 
@@ -397,6 +418,8 @@ interface ParParseDefaultableInterface {
 
 /**
  * Base class for all parsable command-line elements.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 abstract class ParParseParsableElement implements ParParseParsableElementInterface {
 
@@ -596,6 +619,8 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
 
 /**
  * Represents an argument.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseArgument extends ParParseParsableElement implements ParParseTypeableInterface, ParParseDefaultableInterface {
 
@@ -862,6 +887,8 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
 
 /**
  * Represents a flag.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseFlag extends ParParseParsableElement implements ParParseAliasableInterface {
 
@@ -989,6 +1016,8 @@ class ParParseFlag extends ParParseParsableElement implements ParParseAliasableI
 
 /**
  * Represents a parameter.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseParameter extends ParParseParsableElement implements ParParseAliasableInterface, ParParseTypeableInterface, ParParseDefaultableInterface {
 
@@ -1201,6 +1230,8 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
 
 /**
  * Parsed arguments results.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseResult {
 
@@ -1246,10 +1277,14 @@ class ParParseResult {
 
 /**
  * Base ParParse exception.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseException extends Exception {}
 
 /**
  * Missing argument exception.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseMissingArgumentException extends ParParseException {}
