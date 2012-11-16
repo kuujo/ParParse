@@ -150,7 +150,12 @@ class ParParse {
             throw $e;
           }
           else {
-            $results[$arg->getName()] = $arg->getDefaultValue();
+            try {
+              $results[$arg->getName()] = $arg->getDefaultValue();
+            }
+            catch (ParParseException $e) {
+              throw new ParParseMissingArgumentException('Missing argument '. $arg->getName() .'.');
+            }
           }
         }
       }
@@ -524,14 +529,21 @@ class ParParseArgument extends ParParseParsableElement {
   private $cardinality = 1;
 
   /**
-   * The argument's default value. Defaults to NULL.
+   * Indicates whether the argument has a default value.
+   *
+   * @var bool
+   */
+  private $hasDefault = FALSE;
+
+  /**
+   * The argument's default value.
    *
    * Note that only the last argument in a set of arguments can have
    * a default value, otherwise an exception will be thrown by the parser.
    *
    * @var string|null
    */
-  private $defaultValue = NULL;
+  private $defaultValue;
 
   /**
    * Parses flags from command-line arguments.
@@ -649,6 +661,9 @@ class ParParseArgument extends ParParseParsableElement {
    *   The argument's default value.
    */
   public function getDefaultValue() {
+    if (!$this->hasDefault) {
+      throw new ParParseException('No default value for '. $this->name .'.');
+    }
     return $this->defaultValue;
   }
 
@@ -665,6 +680,7 @@ class ParParseArgument extends ParParseParsableElement {
    *   The called object.
    */
   public function setDefaultValue($default) {
+    $this->hasDefault = TRUE;
     $this->defaultValue = $default;
     return $this;
   }
@@ -937,8 +953,7 @@ $parser->addArgument('partner')
   ->setLabel('Partner');
 $parser->addArgument('category')
   ->setLabel('Category')
-  ->setCardinality(ParParseArgument::CARDINALITY_UNLIMITED)
-  ->setDefaultValue(NULL);
+  ->setCardinality(ParParseArgument::CARDINALITY_UNLIMITED);
 
 $parser->addFlag('someflag')
   ->setLabel('Some flag')
