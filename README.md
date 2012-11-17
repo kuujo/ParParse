@@ -11,6 +11,35 @@ project directory and use `require 'path/to/ParParse.php`.
 Usage
 -----
 
+#### A Complete Example
+Before getting started in the specifics of ParParse, this is a fairly
+complete example of how to use the API.
+
+```php
+require 'ParParse.php';
+
+$parser = new ParParse('An application to calculate sums.');
+
+$parser->addArgument('total', ParParseArgument::UNLIMITED)
+  ->setHelpText('A list of numbers to sum.')
+  ->setDataType('float')
+  ->addCallback('array_sum');
+
+$parser->addOption('--round', '-r')
+  ->setHelpText('The number of decimal points by which to round.')
+  ->setValueDescriptor('decimals')
+  ->setDataType('int')
+  ->setDefaultValue(2);
+
+// myscript.php 1.1, 2.2, 3.3 --round 4
+
+$results = $parser->parse();
+$rounded = round($results->get('total'), $results->get('round'));
+echo $rounded; // 6.6
+```
+
+### More About the API
+
 ```php
 require 'ParParse.php';
 
@@ -18,8 +47,7 @@ require 'ParParse.php';
 $parser = new ParParse();
 ```
 
-ParParse defines three different types of arguments, positional arguments,
-optional flags, and optional parameters.
+ParParse defines two element types, positional arguments and options.
 
 ### Position Arguments
 Positional arguments are mostly self explanitory. The order in which you
@@ -44,45 +72,43 @@ $parser->addArgument('bar')
 $parser->addArgument('bar', ParParseArgument::CARDINALITY_UNLIMITED);
 ```
 
-### Optional Flags
-Flags represent boolean options, meaning if the flag is present then
-the value is `TRUE`, otherwise the value is `FALSE`. Also, we can invoke
-custom actions when flags are present.
+### Options
+Options are represented by being prefixed with dashes, as is common
+in command line usage. Options can server as either boolean flags or
+expect a value. Additionally, we can perform actions based on whether
+an option is present, and as with arguments we can apply data types and
+data processing callbacks to an option. Additionally, options *must*
+have a default value, which defaults to `FALSE`.
 
 ```php
-// The second argument to ParParse::addFlag() is a flag alias.
-// In this case the flag can be used via --baz or -b.
-$parser->addFlag('baz', 'b');
+// The second argument to ParParse::addOption() is an alias.
+$parser->addOption('--baz', '-b');
 
-// We could also use the ParParseFlag::setAlias() method.
-$flag = $parser->addFlag('baz')
-  ->setAlias('b')
+// We could also use the ParParseOption::setAlias() method.
+$option = $parser->addOption('--baz')
+  ->setAlias('-b')
   ->setHelpText('Baz does foo.');
 
-// Let's add an action to the flag.
+// So far, what we've made is a boolean flag. If the flag isn't present
+// it will return FALSE, and if it is it will return TRUE.
 function baz_action() {
   print "baz is present!";
 }
-$flag->addAction('baz_action');
-```
+$option->addAction('baz_action');
 
-Examples: `myscript --baz` `myscript -b`
-
-### Optional Parameters
-Finally, the last element type supported in ParParse - parameters - represent
-options that can have dynamic values. For example, `--foo=bar` or `--foo bar`
-or `-f=bar`, etc. Note that parameters *must* have a default value (which
-itself defaults to `NULL`).
-
-```php
-$parser->addParameter('--foo')
+// Now let's add an option that expects a value.
+$parser->addOption('--foo')
   ->setAlias('-f')
-  ->setDataType('int')
-  ->setDefaultValue(0)
-  ->setHelpText('Foo does bar.');
-```
+  ->setDataType('string')
+  ->setDefaultValue('foo/bar')
+  ->setValueDescriptor('path')
+  ->setHelpText('an optional path to bar');
+// Note that we used another setter for a property called
+// valueDescriptor. The value descriptor is used when printing
+// command help text on the command line to identify the type
+// of value expected by the option.
 
-Examples: `myscript --foo=1` `myscript -f 1`
+```
 
 ### Processing results
 All types of elements support arbitrary data processing callbacks.
@@ -99,10 +125,12 @@ function round_foo($value) {
 
 $parser->addArgument('foo')
   ->setDataType('float')
+  ->setHelpText('a foo price')
   ->addCallback('round_foo');
 
 $parser->addArgument('bar')
   ->setDataType('string')
+  ->setHelpText('a bar proper name')
   ->addCallback('ucfirst');
 ```
 

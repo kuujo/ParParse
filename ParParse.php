@@ -90,6 +90,12 @@ class ParParse {
    *   An optional associative array of additional argument options.
    */
   public function addArgument($identifier, $cardinality = 1, array $options = array()) {
+    if (strpos($identifier, '--') === 0) {
+      return $this->addElement(new ParParseOption($identifier, $options));
+    }
+    else {
+      return $this->addElement(new ParParseArgument($identifier, $options));
+    }
     $options += array('cardinality' => $cardinality);
     return $this->addElement(new ParParseArgument($identifier, $options));
   }
@@ -253,7 +259,7 @@ class ParParse {
   private function printArgument(ParParseArgument $arg) {
     $usage = '';
     $cardinality = $arg->getCardinality();
-    if ($cardinality == ParParseArgument::CARDINALITY_UNLIMITED) {
+    if ($cardinality == ParParseArgument::UNLIMITED) {
       $usage .= ' '. $arg->getIdentifier() .' ['. $arg->getIdentifier() .' ...]';
     }
     else {
@@ -735,7 +741,7 @@ class ParParseArgument extends ParParseParsableElement {
    *
    * @var int
    */
-  const CARDINALITY_UNLIMITED = -1;
+  const UNLIMITED = -1;
 
   /**
    * Indicates the element type.
@@ -816,7 +822,7 @@ class ParParseArgument extends ParParseParsableElement {
           }
         }
         break;
-      case self::CARDINALITY_UNLIMITED:
+      case self::UNLIMITED:
         $values = array();
         for ($i = 0; $i < $num_args; $i++) {
           if (strpos($args[$i], '-') === 0) {
@@ -1196,3 +1202,36 @@ class ParParseException extends Exception {}
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseMissingArgumentException extends ParParseException {}
+
+$parser = new ParParse();
+
+$parser->addArgument('foo', 1)
+  ->setHelpText('Foo argument does bar.');
+$parser->addArgument('bar', 2)
+  ->setDefaultValue('non-existent')
+  ->setHelpText('Bar argument does baz.');
+
+$parser->addOption('--baz', '-b')
+  ->setDefaultValue('baz bitches')
+  ->setHelpText('Baz is a simple boolean flag.')
+  ->setDataType('string');
+$parser->addOption('--boo')
+  ->setAlias('-o')
+  ->setDataType('int')
+  ->setDefaultValue(0)
+  ->setHelpText('Boo scares the shit outta you!')
+  ->setValueDescriptor('number');
+
+$results = $parser->parse();
+
+$foo = $results->get('foo');
+print 'Foo: '. $foo.PHP_EOL;
+
+$bar = $results->get('bar');
+print_r($bar);
+
+$baz = $results->get('baz');
+print 'Baz: '. $baz.PHP_EOL;
+
+$boo = $results->get('boo');
+print 'Boo: '. $boo.PHP_EOL;
