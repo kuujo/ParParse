@@ -75,8 +75,8 @@ or `-f=bar`, etc. Note that parameters *must* have a default value (which
 itself defaults to `NULL`).
 
 ```php
-$parser->addParameter('foo')
-  ->setAlias('f')
+$parser->addParameter('--foo')
+  ->setAlias('-f')
   ->setDataType('int')
   ->setDefaultValue(0)
   ->setHelpText('Foo does bar.');

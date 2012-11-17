@@ -19,6 +19,21 @@
 class ParParse {
 
   /**
+   * The program description. This is used in generating usage text.
+   *
+   * @var string
+   */
+  private $description = '';
+
+  /**
+   * Optional text describing the usage of the command. If the usage text
+   * is empty then the parser will generate usage text.
+   *
+   * @var string|null
+   */
+  private $usage = NULL;
+
+  /**
    * An assiciative array of parsable element definitions, keyed by element type.
    *
    * @var array
@@ -26,12 +41,25 @@ class ParParse {
   private $elements = array();
 
   /**
-   * An associative array of unique parser names. This is used to ensure
+   * An associative array of unique parser identifiers. This is used to ensure
    * machine-names are not duplicated.
    *
    * @var array
    */
-  private $uniqueNames = array();
+  private $uniqueIdentifiers = array();
+
+  /**
+   * Constructor.
+   *
+   * @param string $description
+   *   The program description, used in generating usage text.
+   * @param string|null $usage
+   *   Optional usage text overriding the generated usage text.
+   */
+  public function __construct($description = '', $usage = NULL) {
+    $this->description = $description;
+    $this->usage = $usage;
+  }
 
   /**
    * Adds a new parsable element to the parser.
@@ -42,60 +70,41 @@ class ParParse {
    * @return ParParseParsableElement
    *   The added element.
    */
-  public function addElement(ParParseParsableElement $element) {
-    if (array_search($element->getName(), $this->uniqueNames) !== FALSE) {
-      throw new ParParseException('Cannot duplicate element name '. $element->getName() .'. An element with that name already exists.');
+  public function addElement(ParParseParsableElementInterface $element) {
+    if (array_search($element->getIdentifier(), $this->uniqueIdentifiers) !== FALSE) {
+      throw new ParParseException('Cannot duplicate element identifier '. $element->getIdentifier() .'. An element with that identifier already exists.');
     }
     $this->elements[] = $element;
-    $this->uniqueNames[] = $element->getName();
+    $this->uniqueIdentifiers[] = $element->getIdentifier();
     return $element;
   }
 
   /**
    * Adds an argument definition to the argument parser.
    *
-   * @param string $name
-   *   The argument's machine-name, used to reference the parameter value.
+   * @param string $identifier
+   *   The argument's machine-name, used to reference the argument value.
    * @param int $cardinality
    *   The number of arguments expected by the argument. Defaults to 1.
    * @param array $options
    *   An optional associative array of additional argument options.
    */
-  public function addArgument($name, $cardinality = 1, array $options = array()) {
+  public function addArgument($identifier, $cardinality = 1, array $options = array()) {
     $options += array('cardinality' => $cardinality);
-    return $this->addElement(new ParParseArgument($name, $options));
+    return $this->addElement(new ParParseArgument($identifier, $options));
   }
 
   /**
-   * Adds a flag definition to the argument parser.
+   * Adds an option definition to the argument parser.
    *
-   * @param string $name
-   *   The flag's machine-name, used to reference the flag value.
+   * @param string $identifier
+   *   The option's machine-name identifier, with or without two dashes.
    * @param string|null $alias
-   *   The flag's optional short alias.
-   * @param array $options
-   *   An optional associative array of additional flag options.
+   *   The option's alias, prefixed with one dash.
    */
-  public function addFlag($name, $alias = NULL, array $options = array()) {
-    $options += array('alias' => $alias);
-    return $this->addElement(new ParParseFlag($name, $options));
-  }
-
-  /**
-   * Adds a parameter definition to the argument parser.
-   *
-   * @param string $name
-   *   The parameter's machine-name, used to reference the parameter value.
-   * @param string|null $alias
-   *   The parameter's optional short alias.
-   * @param mixed|null $default
-   *   The parameter's default value. Defaults to NULL.
-   * @param array $options
-   *   An optional associative array of additional parameter options.
-   */
-  public function addParameter($name, $alias = NULL, $default = NULL, array $options = array()) {
+  public function addOption($identifier, $alias = NULL, $default = NULL, array $options = array()) {
     $options += array('alias' => $alias, 'default_value' => $default);
-    return $this->addElement(new ParParseParameter($name, $options));
+    return $this->addElement(new ParParseOption($identifier, $options));
   }
 
   /**
@@ -125,13 +134,14 @@ class ParParse {
     // First check for the special '--help' option.
     if (in_array('--help', $args) || in_array('-h', $args)) {
       $this->printHelpText($command);
+      exit(0);
     }
 
     // Note that the order in which elements are parsed is essential to
-    // ensure conflicts do not arise. We have to parse flags, parameters,
-    // and then arguments, so we separate the elements and process separately.
+    // ensure conflicts do not arise. We have to parse options and then
+    // arguments, so we separate the elements and process them separately.
     try {
-      $results = $flags = $parameters = $arguments = array();
+      $results = $options = $arguments = array();
       foreach ($this->elements as $element) {
         $element_type = $element->getType();
         if (isset(${$element_type.'s'})) {
@@ -139,14 +149,9 @@ class ParParse {
         }
       }
 
-      // Process flags.
-      foreach ($flags as $flag) {
-        $results[$flag->getName()] = $flag->parse($args);
-      }
-
-      // Process parameters.
-      foreach ($parameters as $param) {
-        $results[$param->getName()] = $param->parse($args);
+      foreach ($options as $option) {
+        $args = array_values($args);
+        $results[$option->getIdentifier()] = $option->parse($args);
       }
 
       // Arguments are treated a little differently. Only the last argument
@@ -155,8 +160,9 @@ class ParParse {
       $num_args = count($arguments);
       for ($i = 0; $i < $num_args; $i++) {
         $arg = $arguments[$i];
+        $args = array_values($args);
         try {
-          $results[$arg->getName()] = $arg->parse($args);
+          $results[$arg->getIdentifier()] = $arg->parse($args);
         }
         catch (ParParseMissingArgumentException $e) {
           if (isset($arguments[$i+1])) {
@@ -164,10 +170,10 @@ class ParParse {
           }
           else {
             try {
-              $results[$arg->getName()] = $arg->getDefaultValue();
+              $results[$arg->getIdentifier()] = $arg->getDefaultValue();
             }
             catch (ParParseException $e) {
-              throw new ParParseMissingArgumentException('Missing argument '. $arg->getName() .'.');
+              throw new ParParseMissingArgumentException('Missing argument '. $arg->getIdentifier() .'.');
             }
           }
         }
@@ -184,6 +190,10 @@ class ParParse {
    * Prints command-line help text.
    */
   private function printHelpText($command) {
+    if (!is_null($this->usage)) {
+      echo $this->usage;
+    }
+
     $help = array();
     $usage = 'Usage: '. $command;
     foreach ($this->elements as $element) {
@@ -191,11 +201,8 @@ class ParParse {
         case 'argument':
           $usage .= $this->printArgument($element);
           break;
-        case 'flag':
-          $usage .= $this->printFlag($element);
-          break;
-        case 'parameter':
-          $usage .= $this->printParameter($element);
+        case 'option':
+          $usage .= $this->printOption($element);
           break;
       }
     }
@@ -203,7 +210,8 @@ class ParParse {
     $usage .= "\n";
     $help[] = $usage;
 
-    $help[] = '-h|--help Display command usage information.';
+    $help[] = "\n";
+    $help[] = '-h|--help Display command usage information.'."\n";
 
     $arguments = $options = array();
     foreach ($this->elements as $element) {
@@ -215,17 +223,22 @@ class ParParse {
       }
     }
 
+    $help[] = "\n";
     $indent = '  ';
     $help[] = 'Arguments:'."\n";
     foreach ($arguments as $arg) {
-      $help[] = $indent . $arg->getName() . $indent . $arg->getHelpText() . "\n";
+      $help[] = $indent . $arg->getIdentifier() . $indent . $arg->getHelpText() . "\n";
     }
 
+    $help[] = "\n";
     $help[] = 'Options:'."\n";
     foreach ($options as $option) {
-      $opt_text = '--'. $option->getName();
+      $opt_text = '--'. $option->getIdentifier();
       if ($option->getAlias()) {
         $opt_text = '-'. $option->getAlias() .' '. $opt_text;
+      }
+      if ($option->getValueDescriptor()) {
+        $opt_text .= ' '. $option->getValueDescriptor();
       }
       $opt_text .= $indent . $option->getHelpText();
       $opt_text .= "\n";
@@ -241,34 +254,29 @@ class ParParse {
     $usage = '';
     $cardinality = $arg->getCardinality();
     if ($cardinality == ParParseArgument::CARDINALITY_UNLIMITED) {
-      $usage .= ' '. $arg->getName() .' ['. $arg->getName() .' ...]';
+      $usage .= ' '. $arg->getIdentifier() .' ['. $arg->getIdentifier() .' ...]';
     }
     else {
       for ($i = 0; $i < $cardinality; $i++) {
-        $usage .= ' '. $arg->getName();
+        $usage .= ' '. $arg->getIdentifier();
       }
     }
     return $usage;
   }
 
   /**
-   * Returns command-line help text for a flag.
+   * Returns command-line help text for an option.
    */
-  private function printFlag(ParParseFlag $flag) {
-    if ($flag->getAlias()) {
-      return ' [-'. $flag->getAlias() .'|--'. $flag->getName() .']';
+  private function printOption(ParParseOption $option) {
+    if ($option->getAlias()) {
+      if ($option->getValueDescriptor()) {
+        return ' ['. $option->getAlias() .'|'. $option->getIdentifier() .'=<'. $option->getValueDescriptor() .'>]';
+      }
+      else {
+        return ' ['. $option->getAlias() .'|'. $option->getIdentifier() .']';
+      }
     }
-    return ' [--'. $flag->getName() .']';
-  }
-
-  /**
-   * Returns command-line help text for a parameter.
-   */
-  private function printParameter(ParParseParameter $param) {
-    if ($param->getAlias()) {
-      return ' [-'. $param->getAlias() .'|--'. $param->getName() .'=<'. $param->getValueDescriptor() .'>]';
-    }
-    return ' [--'. $param->getName() .'=<value>]';
+    return ' ['. $param->getIdentifier() .'=<value>]';
   }
 
 }
@@ -300,12 +308,12 @@ interface ParParseParsableElementInterface {
   public function getType();
 
   /**
-   * Returns the element's machine-readable name.
+   * Returns the element's command-line identifier.
    *
    * @return string
-   *   The element's machine-readable name.
+   *   The element's command-line identifier.
    */
-  public function getName();
+  public function getIdentifier();
 
   /**
    * Returns help text for the element.
@@ -421,7 +429,7 @@ interface ParParseDefaultableInterface {
  *
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
-abstract class ParParseParsableElement implements ParParseParsableElementInterface {
+abstract class ParParseParsableElement implements ParParseParsableElementInterface, ParParseTypeableInterface, ParParseDefaultableInterface {
 
   /**
    * The parsable element's type. This should be set in the class definition
@@ -432,11 +440,33 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
   protected $type = '';
 
   /**
-   * The element's unique machine name.
+   * The element's unique machine identifier.
    *
    * @var string
    */
-  protected $name;
+  protected $identifier;
+
+  /**
+   * The argument's data type.
+   *
+   * @var string|null
+   */
+  protected $dataType = NULL;
+
+  /**
+   * A list of available data types for settype().
+   *
+   * @var array
+   */
+  private static $dataTypes = array(
+    ParParseTypeableInterface::DATATYPE_BOOLEAN,
+    ParParseTypeableInterface::DATATYPE_INTEGER,
+    ParParseTypeableInterface::DATATYPE_FLOAT,
+    ParParseTypeableInterface::DATATYPE_STRING,
+    ParParseTypeableInterface::DATATYPE_ARRAY,
+    ParParseTypeableInterface::DATATYPE_OBJECT,
+    ParParseTypeableInterface::DATATYPE_NULL,
+  );
 
   /**
    * The element's command-line help text.
@@ -444,6 +474,16 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
    * @var string
    */
   protected $helpText = '';
+
+  /**
+   * The argument's default value.
+   *
+   * Note that only the last argument in a set of arguments can have
+   * a default value, otherwise an exception will be thrown by the parser.
+   *
+   * @var string|null
+   */
+  protected $defaultValue = NULL;
 
   /**
    * An array of callbacks to invoke for the element's values.
@@ -455,96 +495,16 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
   /**
    * Constructor.
    *
-   * @param string $name
+   * @param string $identifier
    *   The element's unique machine-name.
    * @param array $options
    *   An associative array of additional element options.
    */
-  public function __construct($name, array $options = array()) {
-    $this->name = $name;
+  public function __construct($identifier, array $options = array()) {
+    $this->identifier = $identifier;
     foreach ($options as $option => $value) {
       $this->setOption($option, $value);
     }
-  }
-
-  /**
-   * Returns the element type.
-   *
-   * @return string
-   *   The element type.
-   */
-  public function getType() {
-    return $this->type;
-  }
-
-  /**
-   * Returns the element's machine-readable name.
-   *
-   * @return string
-   *   The element's machine-readable name.
-   */
-  public function getName() {
-    return $this->name;
-  }
-
-  /**
-   * Returns help text for the element.
-   *
-   * @return string
-   *   The element's command-line help text.
-   */
-  public function getHelpText() {
-    return $this->helpText;
-  }
-
-  /**
-   * Sets the help text for the element.
-   *
-   * @param string $help
-   *   The element's help text.
-   *
-   * @return ParParseParsableElement
-   *   The called object.
-   */
-  public function setHelpText($help) {
-    if (!is_string($help)) {
-      throw new InvalidArgumentException('Invalid help text for '. $this->type .' '. $this->name .'. Help text must be a string.');
-    }
-    $this->helpText = $help;
-    return $this;
-  }
-
-  /**
-   * Adds a processing callback.
-   *
-   * @param callable $callback
-   *   The callback to invoke for element values.
-   *
-   * @return ParParseParsableElement
-   *   The called object.
-   */
-  public function addCallback($callback) {
-    $this->callbacks[] = $callback;
-    return $this;
-  }
-
-  /**
-   * Executes callbacks for the element's value.
-   *
-   * @param mixed $value
-   *   The value to process.
-   *
-   * @return mixed
-   *   The resulting processed value.
-   */
-  protected function executeCallbacks($value) {
-    foreach ($this->callbacks as $callback) {
-      if (!is_callable($callback)) {
-        throw new InvalidArgumentException('Invalid callback '. $callback .' for '. $this-> type .' '. $this->name .'. Callbacks must be callable.');
-      }
-      $value = $callback($value);
-    }
-    return $value;
   }
 
   /**
@@ -574,7 +534,7 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
    */
   public function getOption($option) {
     if (strpos($option, '_') !== FALSE) {
-      $option = array_map('ucfirst', explode('_', $option));
+      $option = implode('', array_map('ucfirst', explode('_', $option)));
     }
     $method = 'get'. ucfirst($option);
     if (method_exists($this, $method)) {
@@ -615,6 +575,152 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
     return $this;
   }
 
+  /**
+   * Returns the element type.
+   *
+   * @return string
+   *   The element type.
+   */
+  public function getType() {
+    return $this->type;
+  }
+
+  /**
+   * Returns the element's command line identifier.
+   *
+   * @return string
+   *   The element's command line identifier.
+   */
+  public function getIdentifier() {
+    return $this->identifier;
+  }
+
+  /**
+   * Returns help text for the element.
+   *
+   * @return string
+   *   The element's command-line help text.
+   */
+  public function getHelpText() {
+    return $this->helpText;
+  }
+
+  /**
+   * Sets the help text for the element.
+   *
+   * @param string $help
+   *   The element's help text.
+   *
+   * @return ParParseParsableElement
+   *   The called object.
+   */
+  public function setHelpText($help) {
+    if (!is_string($help)) {
+      throw new InvalidArgumentException('Invalid help text for '. $this->type .' '. $this->identifier .'. Help text must be a string.');
+    }
+    $this->helpText = $help;
+    return $this;
+  }
+
+  /**
+   * Returns the element's default value.
+   *
+   * @return mixed
+   *   The element's default value.
+   */
+  public function getDefaultValue() {
+    return $this->defaultValue;
+  }
+
+  /**
+   * Sets the element's default value.
+   *
+   * @param mixed $default
+   *   The default value.
+   *
+   * @return ParParseElement
+   *   The called object.
+   */
+  public function setDefaultValue($default) {
+    $this->defaultValue = $default;
+    return $this;
+  }
+
+  /**
+   * Sets the argument's data type.
+   *
+   * @param string $data_type
+   *   The data type.
+   *
+   * @return ParParseArgument
+   *   The called object.
+   */
+  public function setDataType($data_type) {
+    if (!in_array($data_type, self::$dataTypes) && !class_exists($data_type)) {
+      throw new InvalidArgumentException('Invalid data type '. $data_type .'. Data type must be a PHP type or available class.');
+    }
+    $this->dataType = $data_type;
+    return $this;
+  }
+
+  /**
+   * Applies the current data type to the given value.
+   *
+   * @param string $value
+   *   The value to which to apply the data type.
+   *
+   * @return mixed
+   *   The new value with the data type applied.
+   */
+  protected function applyDataType($value) {
+    if (!isset($this->dataType)) {
+      return $value;
+    }
+    if (in_array($this->dataType, self::$dataTypes)) {
+      settype($value, $this->dataType);
+      return $value;
+    }
+    else {
+      if (!class_exists($this->dataType)) {
+        throw new InvalidArgumentException('Invalid data type '. $this->dataType .'. Data type must be a PHP type or available class.');
+      }
+      return new $this->dataType($value);
+    }
+  }
+
+  /**
+   * Adds a processing callback.
+   *
+   * @param callable $callback
+   *   The callback to invoke for element values.
+   *
+   * @return ParParseParsableElement
+   *   The called object.
+   */
+  public function addCallback($callback) {
+    $this->callbacks[] = $callback;
+    return $this;
+  }
+
+  /**
+   * Executes callbacks for the element's value.
+   *
+   * @param mixed $value
+   *   The value to process.
+   *
+   * @return mixed
+   *   The resulting processed value.
+   */
+  protected function executeCallbacks($value) {
+    foreach ($this->callbacks as $callback) {
+      if (!is_callable($callback)) {
+        throw new InvalidArgumentException('Invalid callback '. $callback .' for '. $this-> type .' '. $this->identifier .'. Callbacks must be callable.');
+      }
+      $value = $callback($value);
+    }
+    return $value;
+  }
+
 }
 
 /**
@@ -622,7 +728,7 @@ abstract class ParParseParsableElement implements ParParseParsableElementInterfa
  *
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
-class ParParseArgument extends ParParseParsableElement implements ParParseTypeableInterface, ParParseDefaultableInterface {
+class ParParseArgument extends ParParseParsableElement {
 
   /**
    * Indicates unlimited cardinality.
@@ -639,28 +745,6 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
   protected $type = 'argument';
 
   /**
-   * The argument's data type.
-   *
-   * @var string|null
-   */
-  private $dataType = NULL;
-
-  /**
-   * A list of available data types for settype().
-   *
-   * @var array
-   */
-  private static $dataTypes = array(
-    ParParseTypeableInterface::DATATYPE_BOOLEAN,
-    ParParseTypeableInterface::DATATYPE_INTEGER,
-    ParParseTypeableInterface::DATATYPE_FLOAT,
-    ParParseTypeableInterface::DATATYPE_STRING,
-    ParParseTypeableInterface::DATATYPE_ARRAY,
-    ParParseTypeableInterface::DATATYPE_OBJECT,
-    ParParseTypeableInterface::DATATYPE_NULL,
-  );
-
-  /**
    * Indicates the number of arguments expected.
    *
    * @var int
@@ -675,47 +759,34 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
   private $hasDefault = FALSE;
 
   /**
-   * The argument's default value.
-   *
-   * Note that only the last argument in a set of arguments can have
-   * a default value, otherwise an exception will be thrown by the parser.
-   *
-   * @var string|null
-   */
-  private $defaultValue;
-
-  /**
    * Constructor.
    *
-   * @param string $name
+   * @param string $identifier
    *   The element's unique machine-name.
    * @param array $options
-   *   An associative array of additional element options.
+   *   An associative array of additional argument options.
    */
-  public function __construct($name, array $options = array()) {
-    if (strpos($name, '--') === 0) {
-      throw new InvalidArgumentException($name .' is not a valid argument.');
+  public function __construct($identifier, array $options = array()) {
+    if (strpos($identifier, '-') === 0) {
+      throw new InvalidArgumentException($identifier .' is not a valid argument.');
     }
-    else if (strpos($name, '-') === 0) {
-      throw new InvalidArgumentException($name .' is not a valid argument.');
-    }
-    parent::__construct($name, $options);
+    parent::__construct($identifier, $options);
   }
 
   /**
-   * Parses flags from command-line arguments.
+   * Parses positional arguments from command-line arguments.
    *
    * @param array $args
    *   An array of command-line arguments.
    *
    * @return mixed
-   *   The flag value.
+   *   The argument value.
    */
   public function parse(array &$args) {
     $args = array_values($args);
     $num_args = count($args);
     if ($num_args === 0) {
-      throw new ParParseMissingArgumentException('Missing argument '. $this->name .'.');
+      throw new ParParseMissingArgumentException('Missing argument '. $this->identifier .'.');
     }
     else {
       $valid_args = array();
@@ -727,7 +798,7 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
       }
 
       if (count($valid_args) == 0) {
-        throw new ParParseMissingArgumentException('Missing argument '. $this->name .'.');
+        throw new ParParseMissingArgumentException('Missing argument '. $this->identifier .'.');
       }
     }
 
@@ -781,48 +852,6 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
   }
 
   /**
-   * Sets the argument's data type.
-   *
-   * @param string $data_type
-   *   The data type.
-   *
-   * @return ParParseArgument
-   *   The called object.
-   */
-  public function setDataType($data_type) {
-    if (!in_array($data_type, self::$dataTypes) && !class_exists($data_type)) {
-      throw new InvalidArgumentException('Invalid data type '. $data_type .'. Data type must be a PHP type or available class.');
-    }
-    $this->dataType = $data_type;
-    return $this;
-  }
-
-  /**
-   * Applies the current data type to the given value.
-   *
-   * @param string $value
-   *   The value to which to apply the data type.
-   *
-   * @return mixed
-   *   The new value with the data type applied.
-   */
-  private function applyDataType($value) {
-    if (!isset($this->dataType)) {
-      return $value;
-    }
-    if (in_array($this->dataType, self::$dataTypes)) {
-      settype($value, $this->dataType);
-      return $value;
-    }
-    else {
-      if (!class_exists($this->dataType)) {
-        throw new InvalidArgumentException('Invalid data type '. $this->dataType .'. Data type must be a PHP type or available class.');
-      }
-      return new $this->dataType($value);
-    }
-  }
-
-  /**
    * Returns the argument cardinality.
    *
    * @return int
@@ -860,7 +889,7 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
    */
   public function getDefaultValue() {
     if (!$this->hasDefault) {
-      throw new ParParseException('No default value for '. $this->name .'.');
+      throw new ParParseException('No default value for '. $this->identifier .'.');
     }
     return $this->defaultValue;
   }
@@ -886,311 +915,157 @@ class ParParseArgument extends ParParseParsableElement implements ParParseTypeab
 }
 
 /**
- * Represents a flag.
+ * Represents an option - prefixed with -- or -.
  *
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
-class ParParseFlag extends ParParseParsableElement implements ParParseAliasableInterface {
+class ParParseOption extends ParParseParsableElement implements ParParseAliasableInterface {
 
   /**
-   * Indicates the element type.
+   * The element type.
    *
    * @var string
    */
-  protected $type = 'flag';
+  protected $type = 'option';
 
   /**
-   * The flag's short alias. Defaults to NULL.
+   * The option's short alias. Defaults to NULL.
    *
    * @var string|null
    */
   private $alias = NULL;
 
   /**
-   * An array of actions to call when the flag is present.
+   * The option's default value.
+   *
+   * @var mixed
+   */
+  protected $defaultValue = FALSE;
+
+  /**
+   * An array of actions to call when the option is present.
    *
    * @var array
    */
   private $actions = array();
 
   /**
-   * Constructor.
-   *
-   * @param string $name
-   *   The element's unique machine-name.
-   * @param array $options
-   *   An associative array of additional element options.
-   */
-  public function __construct($name, array $options = array()) {
-    if (strpos($name, '--') === 0) {
-      $name = substr($name, 2);
-    }
-    else if (strpos($name, '-') === 0) {
-      throw new InvalidArgumentException($name .' is not a valid flag.');
-    }
-    parent::__construct($name, $options);
-  }
-
-  /**
-   * Parses flags from command-line arguments.
-   *
-   * @param array $args
-   *   An array of command-line arguments.
-   *
-   * @return mixed
-   *   The flag value.
-   */
-  public function parse(array &$args) {
-    $args = array_values($args);
-    $num_args = count($args);
-    for ($i = 0; $i < $num_args; $i++) {
-      if ($args[$i] == '--'. $this->name || $args[$i] == '-'. $this->alias) {
-        unset($args[$i]);
-        $this->invokeActions();
-        return $this->executeCallbacks(TRUE);
-      }
-    }
-    return $this->executeCallbacks(FALSE);
-  }
-
-  /**
-   * Returns the flag's short alias.
-   *
-   * @return string
-   *   The flag's short alias.
-   */
-  public function getAlias() {
-    return $this->alias;
-  }
-
-  /**
-   * Sets the flag's short alias.
-   *
-   * @param string $alias
-   *   The flag's short alias.
-   *
-   * @return ParParseFlag
-   *   The called object.
-   */
-  public function setAlias($alias) {
-    if (!isset($alias)) {
-      return $this;
-    }
-    if (!is_string($alias)) {
-      throw new InvalidArgumentException('Invalid alias. Alias must be a string.');
-    }
-    else if (strpos($alias, '--') === 0) {
-      throw new InvalidArgumentException($alias .' is not a valid alias.');
-    }
-    else if (strpos($alias, '-') === 0) {
-      $alias = substr($alias, 1);
-    }
-    $this->alias = $alias;
-    return $this;
-  }
-
-  /**
-   * Adds an action callback to be invoked when the flag is present.
-   *
-   * @param callable $callback
-   *   A callable callback.
-   *
-   * @return ParParseFlag
-   *   The called object.
-   */
-  public function addAction($callback) {
-    $this->actions[] = $action;
-    return $this;
-  }
-
-  /**
-   * Invokes all actions when a flag is present.
-   */
-  private function invokeActions() {
-    foreach ($this->actions as $action) {
-      call_user_func($action);
-    }
-  }
-
-}
-
-/**
- * Represents a parameter.
- *
- * @author Jordan Halterman <jordan.halterman@gmail.com>
- */
-class ParParseParameter extends ParParseParsableElement implements ParParseAliasableInterface, ParParseTypeableInterface, ParParseDefaultableInterface {
-
-  /**
-   * Indicates the element type.
-   *
-   * @var string
-   */
-  protected $type = 'parameter';
-
-  /**
-   * The argument's data type.
-   *
-   * @var string|null
-   */
-  private $dataType = NULL;
-
-  /**
-   * A list of available data types for settype().
-   *
-   * @var array
-   */
-  private static $dataTypes = array(
-    ParParseTypeableInterface::DATATYPE_BOOLEAN,
-    ParParseTypeableInterface::DATATYPE_INTEGER,
-    ParParseTypeableInterface::DATATYPE_FLOAT,
-    ParParseTypeableInterface::DATATYPE_STRING,
-    ParParseTypeableInterface::DATATYPE_ARRAY,
-    ParParseTypeableInterface::DATATYPE_OBJECT,
-    ParParseTypeableInterface::DATATYPE_NULL,
-  );
-
-  /**
-   * The parameter's short alias. Defaults to NULL.
-   *
-   * @var string|null
-   */
-  private $alias = NULL;
-
-  /**
-   * The parameter's default value. Defaults to NULL.
-   *
-   * @var string|null
-   */
-  private $defaultValue = NULL;
-
-  /**
-   * The parameter value descriptor, used to build help text.
+   * The option value descriptor, used to build help text.
    * Defaults to 'value'.
    *
    * @var string
    */
-  private $valueDescriptor = 'value';
+  private $valueDescriptor = FALSE;
 
   /**
    * Constructor.
    *
-   * @param string $name
+   * @param string $identifier
    *   The element's unique machine-name.
    * @param array $options
-   *   An associative array of additional element options.
+   *   An associative array of additional option options.
    */
-  public function __construct($name, array $options = array()) {
-    if (strpos($name, '--') === 0) {
-      $name = substr($name, 2);
+  public function __construct($identifier, array $options = array()) {
+    if (strpos($identifier, '--') === 0) {
+      $identifier = substr($identifier, 2);
     }
-    else if (strpos($name, '-') === 0) {
-      throw new InvalidArgumentException($name .' is not a valid parameter.');
-    }
-    parent::__construct($name, $options);
+    parent::__construct($identifier, $options);
   }
 
   /**
-   * Parses parameters from command-line arguments.
+   * Parses options from command-line arguments.
    *
    * @param array $args
    *   An array of command-line arguments.
    *
    * @return mixed
-   *   The parameter value.
+   *   The option value, or default value if the option wasn't found.
    */
   public function parse(array &$args) {
-    $args = array_values($args);
     $num_args = count($args);
     for ($i = 0; $i < $num_args; $i++) {
-      if (strpos($args[$i], '--'. $this->name) === 0) {
-        $prefix = '--'. $this->name;
+      if ($args[$i] == '--'. $this->identifier) {
+        return $this->getValueFromNextArg($args, $i);
       }
-      else if (strpos($args[$i], '-'. $this->alias) === 0) {
-        $prefix = '-'. $this->alias;
+      else if ($args[$i] == '-'. $this->alias) {
+        return $this->getValueFromNextArg($args, $i);
       }
-      else {
-        continue;
+      else if (strpos($args[$i], '--'. $this->identifier .'=') === 0) {
+        return $this->getValueFromArg($args, $i);
       }
-
-      if ($args[$i] == $prefix) {
-        $value = $args[$i+1];
-        unset($args[$i+1]);
+      else if (strpos($args[$i], '-'. $this->alias .'=') === 0) {
+        return $this->getValueFromArg($args, $i);
       }
-      else if (strpos($args[$i], '=') !== FALSE) {
-        if (strpos($args[$i], $prefix .'=') !== 0) {
-          continue;
-        }
-        $value = substr($args[$i], strlen($prefix) + 1);
-      }
-      else {
-        $value = substr($args[$i], strlen($prefix));
-      }
-      unset($args[$i]);
-      return $this->executeCallbacks($this->applyDataType($value));
     }
     return $this->defaultValue;
   }
 
   /**
-   * Sets the argument's data type.
+   * Attempts to get the option value from the command. This is used
+   * in cases where an equals sign was used for the option value.
    *
-   * @param string $data_type
-   *   The data type.
-   *
-   * @return ParParseArgument
-   *   The called object.
-   */
-  public function setDataType($data_type) {
-    if (!in_array($data_type, self::$dataTypes) && !class_exists($data_type)) {
-      throw new InvalidArgumentException('Invalid data type '. $data_type .'. Data type must be a PHP type or available class.');
-    }
-    $this->dataType = $data_type;
-    return $this;
-  }
-
-  /**
-   * Applies the current data type to the given value.
-   *
-   * @param string $value
-   *   The value to which to apply the data type.
+   * @param array $args
+   *   An array of command line arguments.
+   * @param int $index
+   *   The index of this argument.
    *
    * @return mixed
-   *   The new value with the data type applied.
+   *   The processed argument.
    */
-  private function applyDataType($value) {
-    if (!isset($this->dataType)) {
-      return $value;
-    }
-    if (in_array($this->dataType, self::$dataTypes)) {
-      settype($value, $this->dataType);
-      return $value;
+  private function getValueFromArg(array &$args, $index) {
+    $arg = $args[$index];
+    unset($args[$index]);
+    $value = substr($arg, strpos($arg, '=') + 1);
+    return $this->executeCallbacks($this->applyDataType($value));
+  }
+
+  /**
+   * Attempts to get the option value from the next command line argument.
+   *
+   * @param array $args
+   *   An array of command line arguments.
+   * @param int $index
+   *   The index of this option in arguments.
+   *
+   * @return mixed
+   *   The processed option value.
+   */
+  private function getValueFromNextArg(array &$args, $index) {
+    unset($args[$index]);
+    if (!isset($args[$index+1])) {
+      $this->invokeActions();
+      return $this->executeCallbacks($this->applyDataType(TRUE));
     }
     else {
-      if (!class_exists($this->dataType)) {
-        throw new InvalidArgumentException('Invalid data type '. $this->dataType .'. Data type must be a PHP type or available class.');
+      $next_arg = $args[$index+1];
+      if (strpos($next_arg, '-') === 0) {
+        $this->invokeActions();
+        return $this->executeCallbacks($this->applyDataType(TRUE));
       }
-      return new $this->dataType($value);
+      else {
+        unset($args[$index+1]);
+        return $this->executeCallbacks($this->applyDataType($next_arg));
+      }
     }
   }
 
   /**
-   * Returns the parameter's short alias.
+   * Returns the option's short alias.
    *
    * @return string
-   *   The parameter's short alias.
+   *   The option's short alias.
    */
   public function getAlias() {
     return $this->alias;
   }
 
   /**
-   * Sets the parameter's short alias.
+   * Sets the option's short alias.
    *
    * @param string $alias
-   *   The parameter's short alias.
+   *   The option's short alias.
    *
-   * @return ParParseParameter
+   * @return ParParseOption
    *   The called object.
    */
   public function setAlias($alias) {
@@ -1200,37 +1075,12 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
     if (!is_string($alias)) {
       throw new InvalidArgumentException('Invalid alias. Alias must be a string.');
     }
-    else if (strpos($alias, '--') === 0) {
-      throw new InvalidArgumentException($alias .' is not a valid alias.');
+    if (strpos($alias, '-') === 0) {
+      $this->alias = substr($alias, 1);
     }
-    else if (strpos($alias, '-') === 0) {
-      $alias = substr($alias, 1);
+    else {
+      $this->alias = $alias;
     }
-    $this->alias = $alias;
-    return $this;
-  }
-
-  /**
-   * Returns the parameter's default value.
-   *
-   * @return mixed
-   *   The parameter's default value.
-   */
-  public function getDefaultValue() {
-    return $this->defaultValue;
-  }
-
-  /**
-   * Sets the parameter's default value.
-   *
-   * @param mixed $default
-   *   The default value.
-   *
-   * @return ParParseParameter
-   *   The called object.
-   */
-  public function setDefaultValue($default) {
-    $this->defaultValue = $default;
     return $this;
   }
 
@@ -1250,15 +1100,38 @@ class ParParseParameter extends ParParseParsableElement implements ParParseAlias
    * @param string $descriptor
    *   The value descriptor.
    *
-   * @return ParParseParameter
+   * @return ParParseOption
    *   The called object.
    */
   public function setValueDescriptor($descriptor) {
     if (!is_string($descriptor)) {
-      throw new InvalidArgumentException('Parameter value descriptor must be a string.');
+      throw new InvalidArgumentException('Option value descriptor must be a string.');
     }
     $this->valueDescriptor = $descriptor;
     return $this;
+  }
+
+  /**
+   * Adds an action callback to be invoked when the option is present.
+   *
+   * @param callable $callback
+   *   A callable callback.
+   *
+   * @return ParParseOption
+   *   The called object.
+   */
+  public function addAction($callback) {
+    $this->actions[] = $action;
+    return $this;
+  }
+
+  /**
+   * Invokes all actions when a option is present.
+   */
+  private function invokeActions() {
+    foreach ($this->actions as $action) {
+      call_user_func($action);
+    }
   }
 
 }
@@ -1283,9 +1156,9 @@ class ParParseResult {
   /**
    * Magic method: Gets a result value.
    */
-  public function __get($name) {
+  public function __get($identifier) {
     try {
-      return $this->get($name);
+      return $this->get($identifier);
     }
     catch (ParParseException $e) {
       // Do nothing if the result doesn't exist.
@@ -1295,20 +1168,17 @@ class ParParseResult {
   /**
    * Gets a parser result.
    *
-   * @param string $name
+   * @param string $identifier
    *   The name of the element whose result to return.
    *
    * @return mixed
    *   The element result.
    */
-  public function get($name) {
-    if (strpos($name, '--') === 0) {
-      $name = substr($name, 2);
+  public function get($identifier) {
+    if (isset($this->results[$identifier])) {
+      return $this->results[$identifier];
     }
-    if (isset($this->results[$name])) {
-      return $this->results[$name];
-    }
-    throw new ParParseException('No result with the name '. $name .' exists.');
+    throw new ParParseException('No result for '. $identifier .' exist.');
   }
 
 }
