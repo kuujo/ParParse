@@ -38,15 +38,6 @@ $rounded = round($results->get('total'), $results->get('round'));
 echo $rounded; // 6.6
 ```
 
-### More About the API
-
-```php
-require 'ParParse.php';
-
-// Create a new ParParse object.
-$parser = new ParParse();
-```
-
 ParParse defines two element types, positional arguments and options.
 
 ### Position Arguments
