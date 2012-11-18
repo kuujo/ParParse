@@ -1238,4 +1238,12 @@ $parser->flag('baz')->short('ba')->type('bool');
 
 $parser->option('boo')->short('o')->type('int');
 
-$parser->parse();
+$results = $parser->parse();
+
+echo 'Foo is: '. $results->foo;
+
+echo 'Bar is: '. $results->bar;
+
+echo 'Baz is: '. $results->baz;
+
+echo 'Boo is: '. $results->boo;
