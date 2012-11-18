@@ -26,17 +26,17 @@ positional arguments can also be optional and support default values.
 
 ```php
 $parser = new ParParse();
-$parser->argument('foo')
+$parser->addArgument('foo')
   ->setType('int')
   ->setDefault(1)
   ->setValidator('my_validation_callback')
-  ->setHelp('Foo does bar.');
+  ->setHelpText('Foo does bar.');
 
 // Or, using alternate syntax (I prefer the alternate syntaxt, see below).
 $parser->argument('foo')
   ->type('int')
   ->default(1)
-  ->validator('my_validation_callback')
+  ->validate('my_validation_callback')
   ->help('Foo does bar.');
 
 $results = $parser->parse();
@@ -77,32 +77,32 @@ as normal arguments or with commas `--foo=1,2,3`.
 $parser = new ParParse();
 // Note that an arity of -1 indicates no limit. This means the
 // arguments will be added until the next option switch is found.
-$parser->argument('city')
-  ->arity(ParParseArgument::ARITY_UNLIMITED) // Can also use -1
-  ->help('A random list of cities.');
+$parser->addArgument('city')
+  ->setArity(ParParseArgument::ARITY_UNLIMITED) // Can also use -1
+  ->setHelpText('A random list of cities.');
 
 // Setting the type to 'string' is not really necessary here since
 // all command line arguments are strings.
-$parser->option('alpha', 'a')
-  ->type('string')
-  ->default('')
-  ->help('A simple string.');
+$parser->addOption('alpha', 'a')
+  ->setTyoe('string')
+  ->setDefault('')
+  ->setHelpText('A simple string.');
 
 // Setting the default value to 0 will apply 0 to *each* of
 // the option's two required arguments.
-$parser->option('beta', 'b')
-  ->arity(2)
-  ->type('int')
-  ->default(0)
-  ->help('A list of numbers.');
+$parser->addOption('beta', 'b')
+  ->setArity(2)
+  ->setType('int')
+  ->setDefault(0)
+  ->setHelpText('A list of numbers.');
 
 // Here we set an option with a minimum of two and maximum of
 // three arguments using the min(2) method with an arity of 3.
-$parser->option('foo', 'f')
-  ->arity(3)
-  ->default(array('a', 'b', 'c'))
-  ->min(2)
-  ->help('A minimum of two and maximum of three strings.');
+$parser->addOption('foo', 'f')
+  ->setArity(3)
+  ->setDefault(array('a', 'b', 'c'))
+  ->setMin(2)
+  ->setHelpText('A minimum of two and maximum of three strings.');
 ```
 
 The `arity()` property indicates the number of arguments expected,
@@ -160,16 +160,19 @@ setting up of boolean type switches.
 
 ```php
 $parser = new ParParse();
-$parser->argument('first')->default(NULL)->help('Some help you are!');
+$parser->addArgument('first')->setDefault(NULL)->setHelpText('Some help you are!');
 
-$parser->option('alpha', 'a')->default(FALSE)->help('A simple option.');
+$parser->addOption('alpha', 'a')->setDefault(FALSE)->setHelpText('A simple option.');
 
 // Here's where we get to the flag.
-$parser->flag('charlie', 'c')->help('Foo.');
-$parser->flag('delta', 'd')->help('Bar.');
+$parser->addFlag('charlie', 'c')->setHelpText('Foo.');
+$parser->addFlag('delta', 'd')->setHelpText('Bar.');
 
 // Alternatively, we could define the flag like this...
+$parser->addOption('charlie', 'c')->setArity(0)->setType('bool')->setHelpText('Foo.');
+// Or this...
 $parser->option('charlie', 'c')->arity(0)->type('bool')->help('Foo.');
+// Or a mixture of either.
 ```
 Now we parse the commands.
 ```php
@@ -198,12 +201,12 @@ function validate_under_100($value) {
   return $value < 100;
 }
 
-$parser->argument('foo')
-  ->type('int')
-  ->arity(2)
-  ->default(10)
-  ->validate('validate_under_100')
-  ->help('A bunch of numbers.');
+$parser->addArgument('foo')
+  ->setType('int')
+  ->setArity(2)
+  ->setDefault(10)
+  ->setValidator('validate_under_100')
+  ->setHelpText('A bunch of numbers.');
 ```
 
 What happens if we enter a bad number?
@@ -219,19 +222,66 @@ Arguments:
   foo                                   A bunch of numbers.
 ```
 
+### More examples
+The following script can interpret each of these commands with the same results.
+
+`myscript.php one two --three=four,five --five 1.01 --seven`
+
+`myscript.php -t four five one two --five=1.01 -s`
+
+`myscript.php -s one --three four five two -f 1.01`
+
+```php
+$parser = new ParParse();
+$parser->addArgument('aaa')->setHelpText('First argument (a string).');
+$parser->addArgument('bbb')->setHelpText('Second argument (a string).');
+$parser->addArgument('ccc')->setDefault(0)->setType('int')->setHelpText('Third argument (a number, optional).');
+
+$parser->addOption('three', 't')->setArity(2)->setDefault(array('foo', 'bar'))->setHelpText('First option (a string).');
+$parser->addOption('five', 'f')->setDefault('')->setHelpText('Second option (a float).');
+
+$parser->addFlag('seven', 's')->setHelpText('First flag.');
+$parser->addFlag('eight', 'e')->setHelpText('Second flag (not used).');
+```
+
+```php
+$results = $parser->parse();
+print $results->aaa;
+print $results->bbb;
+print $results->ccc;
+print_r($results->three);
+print $results->five;
+print $results->seven;
+```
+
+```
+"one"
+"two"
+0
+Array
+(
+  [0] => "four"
+  [1] => "five"
+)
+1.01
+true
+false
+```
+
 #### Alternate Syntax
 The syntax demonstrated in this documentation is really only one way out
-of a few different ways to accomplish the same tasks. Internally, all the
-command line element classes in ParParse use methods prefixed with 'set'
-and use the magic `__call()` method to access them in the way demonstrated.
-You can use either method at your discretion:
+of a few different ways to accomplish the same tasks. ParParse also supports
+short versions of all public setters. Internally, it uses a magic `__call()`
+method that simply calls `ParParseElement::setOption()` for unknown method calls.
 
 ```php
 $parser = new ParParse();
 $parser->argument('foo')
-  ->setArity(2)
-  ->setDefault(FALSE)
-  ->setHelp('Foo does bar.');
+  ->arity(2)
+  ->default(array(1, 2))
+  ->validate('my_validation_callback')
+  ->type('int')
+  ->help('Foo does bar.');
 ```
 
 Alternatively, you can construct a `ParParseArgument` or `ParParseOption`

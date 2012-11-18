@@ -62,6 +62,16 @@ class ParParse {
   }
 
   /**
+   * Magic method: allows calling 'add'... methods via short names.
+   */
+  public function __call($method, array $args) {
+    $method = 'add'. ucfirst($method);
+    if (method_exists($method)) {
+      return call_user_func_array($method, $args);
+    }
+  }
+
+  /**
    * Adds a new parsable element to the parser.
    *
    * @param ParParseElement $element
@@ -89,7 +99,7 @@ class ParParse {
    * @param array $options
    *   An optional associative array of additional argument options.
    */
-  public function argument($name, $arity = 1, array $options = array()) {
+  public function addArgument($name, $arity = 1, array $options = array()) {
     $options += array('arity' => $arity);
     return $this->addElement(new ParParseArgument($name, $options));
   }
@@ -104,7 +114,7 @@ class ParParse {
    * @param array $options
    *   An optional associative array of additional flag options.
    */
-  public function flag($name, $alias = NULL, array $options = array()) {
+  public function addFlag($name, $alias = NULL, array $options = array()) {
     return $this->option($name, $alias, $options)->arity(0);
   }
 
@@ -118,7 +128,7 @@ class ParParse {
    * @paam array $options
    *   An associative array of additional option options.
    */
-  public function option($name, $alias = NULL, array $options = array()) {
+  public function addOption($name, $alias = NULL, array $options = array()) {
     return $this->addElement(new ParParseOption($name, $alias, $options));
   }
 
@@ -536,6 +546,13 @@ abstract class ParParseElement implements ParParseElementInterface {
     }
     $this->help = $help;
     return $this;
+  }
+
+  /**
+   * Alias for ParParseElement::setHelp().
+   */
+  public function setHelpText($help) {
+    return $this->setHelp($help);
   }
 
   /**
