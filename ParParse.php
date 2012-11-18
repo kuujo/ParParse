@@ -218,7 +218,7 @@ class ParParse {
     $usage .= "\n";
     $help[] = $usage;
 
-    $help[] = '-h|--help Display command usage information.'."\n";
+    $help[] = '-h|--help                               Display command usage information.'."\n";
 
     $arguments = $options = array();
     foreach ($this->elements as $element) {
