@@ -433,6 +433,7 @@ abstract class ParParseElement implements ParParseElementInterface {
     else if (method_exists($this, 'add'. $method)) {
       return call_user_func_array(array($this, 'add'. $method), $args);
     }
+    throw new InvalidArgumentException('Invalid method '. $method .'.');
   }
 
   /**
@@ -613,7 +614,7 @@ abstract class ParParseElement implements ParParseElementInterface {
     if (!$result) {
       throw new ParParseInvalidArgumentException('Invalid argument(s) for '. $this->name .'.');
     }
-    return $result;
+    return $value;
   }
 
   /**
@@ -628,6 +629,19 @@ abstract class ParParseElement implements ParParseElementInterface {
   public function setValidate($callback) {
     $this->validator = $callback;
     return $this;
+  }
+
+  /**
+   * Convenience alias for setting validators.
+   *
+   * @param string $validator
+   *   The validator callback.
+   *
+   * @return ParParseElement
+   *   The called object.
+   */
+  public function setValidator($callback) {
+    return $this->setValidate($callback);
   }
 
   /**
@@ -788,8 +802,7 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
    */
   public function setDefault($default) {
     $this->hasDefault = TRUE;
-    $this->defaultValue = $default;
-    return $this;
+    return parent::setDefault($default);
   }
 
 }
@@ -1314,34 +1327,3 @@ class ParParseInvalidArgumentException extends ParParseException {}
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseMissingArgumentException extends ParParseException {}
-
-$parser = new ParParse();
-function validate_foo($value) {
-  return TRUE;
-}
-$parser->argument('foo')->arity(2)->default(array(1))->validate('validate_foo')->type('int')->help('Foo argument does bar.');
-
-// Setting the 'type' to 'bool' automatically turns this into a switch.
-// Any arguments given after the switch will be ignored.
-// Also, setting the arity to 0 will convert it to a switch.
-$parser->option('bar')->short('b')->type('bool')->help('Bar option does baz.');
-// $parser->option('bar')->short('b')->alias('baz')->arity(0);
-
-$parser->flag('baz')->short('ba')->type('bool')->help('Baz option does boo.');
-
-$parser->option('boo')->short('o')->type('int')->help('Boo option does foo.');
-
-$results = $parser->parse();
-
-// $parser->option('foo')->short('f')->arity(3)->default(array(1, 2, 3))->min(2)->type('int')->help('blah');
-// ParParse.php --foo 1 2 --bar
-// if the min is 2 and the arity is 3 and 2 arguments are entered
-// then fill the third with the default value.
-
-echo 'Foo is: '. $results->foo.PHP_EOL;
-
-echo 'Bar is: '. $results->bar.PHP_EOL;
-
-echo 'Baz is: '. $results->baz.PHP_EOL;
-
-echo 'Boo is: '. $results->boo.PHP_EOL;
