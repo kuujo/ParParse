@@ -5,8 +5,9 @@ ParParse
 
 ParParse is a command-line arguments parser written in PHP. It is both
 lightweight and feature rich, supporting a range of argument types -
-from positional arguments to boolean flags and named options - as well
-as many additional features like long and short named arguments (most of
+from positional arguments to boolean flags and named options -
+automatically generates usage/help text, and provides many
+additional features like long and short named arguments (most of
 the focus is on conventional Unix syntax), default values, multiple
 arguments, enforced data types, and data validation, all in a single
 include file. To get started all you need to do is copy _ParParse.php_
