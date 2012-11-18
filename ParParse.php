@@ -180,7 +180,7 @@ class ParParse {
         $arg = $arguments[$i];
         $args = array_values($args);
         $last_arg = !isset($arguments[$i+1]);
-        $arguments[$i]->parse($args, $last_arg);
+        $results[$arguments[$i]->getName()] = $arguments[$i]->parse($args, $last_arg);
       }
       return new ParParseResult($results);
     }
@@ -519,7 +519,7 @@ abstract class ParParseElement implements ParParseElementInterface {
     if (!is_string($help)) {
       throw new InvalidArgumentException('Invalid help text for element '. $this->name .'. Help text must be a string.');
     }
-    $this->helpText = $help;
+    $this->help = $help;
     return $this;
   }
 
@@ -640,7 +640,7 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
     // Default values can only be applied to the last positional argument definition.
     $num_valid_args = count($valid_args);
     if (($num_valid_args === 0 || $num_valid_args < $this->arity) && (!$last_arg || !$this->hasDefault)) {
-      throw new ParParseMissingArgumentException('Missing argument '. $this->name .'.');
+      throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->name .' expects '. $this->arity .' arguments.');
     }
 
     switch ($this->arity) {
@@ -710,7 +710,12 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
    *   A help text string.
    */
   public function printHelp($indent = '') {
-    return $indent . $this->name . $indent . $this->help;
+    $output = $indent . $this->name;
+    $left_len = strlen($output);
+    for ($i = 0; $i < 40 - $left_len; $i++) {
+      $output .= ' ';
+    }
+    return $output . $this->help;
   }
 
   /**
@@ -819,19 +824,22 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    * Prints help text for the option.
    */
   public function printHelp($indent = '') {
-    $opt_text = $indent;
+    $output = $indent;
     if ($this->long) {
-      $opt_text .= '--'. $this->long;
+      $output .= '--'. $this->long;
       if ($this->short) {
-        $opt_text .= ' | -'. $this->short;
+        $output .= ' | -'. $this->short;
       }
     }
     else if ($this->short) {
-      $opt_text .= '-'. $this->short;
+      $output .= '-'. $this->short;
     }
 
-    $opt_text .= $indent . $this->help;
-    return $opt_text;
+    $left_len = strlen($output);
+    for ($i = 0; $i < 40 - $left_len; $i++) {
+      $output .= ' ';
+    }
+    return $output . $this->help;
   }
 
   /**
@@ -1226,24 +1234,24 @@ class ParParseException extends Exception {}
 class ParParseMissingArgumentException extends ParParseException {}
 
 $parser = new ParParse();
-$parser->argument('foo')->arity(1)->help('Foo argument does bar.');
+$parser->argument('foo')->arity(2)->help('Foo argument does bar.');
 
 // Setting the 'type' to 'bool' automatically turns this into a switch.
 // Any arguments given after the switch will be ignored.
 // Also, setting the arity to 0 will convert it to a switch.
-$parser->option('bar')->short('b')->type('bool');
+$parser->option('bar')->short('b')->type('bool')->help('Bar option does baz.');
 // $parser->option('bar')->short('b')->alias('baz')->arity(0);
 
-$parser->flag('baz')->short('ba')->type('bool');
+$parser->flag('baz')->short('ba')->type('bool')->help('Baz option does boo.');
 
-$parser->option('boo')->short('o')->type('int');
+$parser->option('boo')->short('o')->type('int')->help('Boo option does foo.');
 
 $results = $parser->parse();
 
-echo 'Foo is: '. $results->foo;
+echo 'Foo is: '. $results->foo.PHP_EOL;
 
-echo 'Bar is: '. $results->bar;
+echo 'Bar is: '. $results->bar.PHP_EOL;
 
-echo 'Baz is: '. $results->baz;
+echo 'Baz is: '. $results->baz.PHP_EOL;
 
-echo 'Boo is: '. $results->boo;
+echo 'Boo is: '. $results->boo.PHP_EOL;
