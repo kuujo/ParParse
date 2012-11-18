@@ -8,7 +8,7 @@ lightweight and feature rich, supporting a range of argument types -
 from positional arguments to boolean flags and named options - as well
 as many additional features like long and short named arguments (most of
 the focus is on conventional Unix syntax), default values, multiple
-arguments, enforced data types, data validation, all in a single
+arguments, enforced data types, and data validation, all in a single
 include file. To get started all you need to do is copy _ParParse.php_
 to your project directory and use `require 'path/to/ParParse.php`.
 
@@ -68,7 +68,7 @@ the next supported argument type, boolean flags.
 What if we want to do the _Hello world_ example using a boolean flag
 and a command that looks something like this?
 
-`myscript.php "Hello world" --exclaim
+`myscript.php "Hello world" --exclaim`
 
 ```php
 $parser = new ParParse();
@@ -96,7 +96,7 @@ a name to the positional argument's text.
 
 Here we still have the same positional argument as before, but with a boolean
 flag for capitalizing the text `-c`, an option for a name `--name`, and another
-option for the suffix of the string.
+option for the suffix of the string `-s`.
 
 ```php
 $parser->argument('text')->help('A string of text to print.');
@@ -137,11 +137,11 @@ echo $results->numbers; // array(1.2, 3.4, 4.5);
 ```
 
 Note here that I used a couple new methods. The arity setting indicates how
-many instanves of the argument are _allowed_. `ArgParseElement::arity()` is
+many instances of the argument are _allowed_. `ArgParseElement::arity()` is
 available on all types of elements - the `ArgParseElement` class is the base
 of both `ArgParseArgument` and `ArgParseOption`, and the flag element is
 simply an `ArgParseOption` object with an arity of `0`. The arity of all
-elements always defaults to 0, except for the special case of flags. Note
+elements always defaults to 1, except for the special case of flags. Note
 that there is a separate method for setting the _minimum_ number of arguments
 required in options (minimums do not work with positional arguments because
 of their nature).
