@@ -41,6 +41,18 @@ $parser->argument('foo')
 
 $results = $parser->parse();
 ```
+We can execute this command using:
+
+`myscript.php 1`
+
+```php
+print $results->foo;
+```
+
+```
+1
+```
+
 The `ParParse::parse()` method will also accept an array of arguments.
 This is useful for cases where you may want to parse command-line like
 information, such as from a configuration file. When no arguments are
@@ -130,10 +142,10 @@ default values are overridden by the command line arguments.
 ```
 Array
 (
-  [0] => 'la'
-  [1] => 'ny'
+  [0] => "la"
+  [1] => "ny"
 )
-bar
+"bar"
 Array
 (
   [0] => 1
@@ -184,8 +196,8 @@ print $results->delta;
 ```
 
 ```
-foo
-b
+"foo"
+"b"
 true
 false
 ```
