@@ -15,183 +15,210 @@ to your project directory and use `require 'path/to/ParParse.php`.
 Usage
 -----
 
-### The Hello World! Example
+### Positional Arguments
 
-#### Positional Arguments
-
-This is a breif example on how we can parse a simple command with only
-a single positional argument:
-
-`myscript.php "Hello world!"`
-
-To parse the script, we simply create a new `ParParse` object, call the
-`ParParse::argument()` method, and add some basic options to the argument
-object. Upon instantiation, arguments and options have basic settings that
-are ideal in most cases. I'll get into the available settings further below.
+ParParse fully supports positional arguments, a feature that is often
+missing from other command-line argument parsers. As with all ParParse
+arguments, positional arguments can be represented in multiple values,
+use custom validation, and be converted to specific data types. Some
+positional arguments can also be optional and support default values.
 
 ```php
-require 'path/to/ParParse.php';
 $parser = new ParParse();
-$parser->argument('text')->help('A string of text to print.');
+$parser->argument('foo')
+  ->type('int')
+  ->default(1)
+  ->validator('my_validation_callback')
+  ->help('Foo does bar.');
+
+// Or, using alternate syntax (see below).
+$parser->argument('foo')
+  ->setType('int')
+  ->setDefault(1)
+  ->setValidator('my_validation_callback')
+  ->setHelp('Foo does bar.');
+
 $results = $parser->parse();
-echo $results->text;
 ```
+The `ParParse::parse()` method will also accept an array of arguments.
+This is useful for cases where you may want to parse command-line like
+information, such as from a configuration file. When no arguments are
+passed to the `parse()` method the global `$argv` arguments are used.
 
-This is a pretty simple script. We simply add a _positional argument_ to
-the parser named `text` and add some helpful help text to the argument.
-Help text is used in generating usage information for display on the command
-line. For example, if we simple type `myscript.php` we'll see something
-like this:
+Help text is used to automatically generate usage information. So, if
+a bad command is entered we'll get a message like this:
+
+`myscript.php`
 
 ```
-Missing argument 'text'.
-Usage: myscript.php text
--h|--help        Display command usage information.
+Missing argument 'foo'.
+Usage: myscript.php foo
+-h|--help                               Display command usage information.
 
 Arguments:
-  text:          A string of text to print.
-```
-Note that you can also pass custom usage text as the second argument
-to the parser's constructor.
-
-Alternatively, if we type the command `myscript.php "Hello world!"` we get:
-
-```
-Hello world!
+  foo                                   Foo does bar.
 ```
 
-#### Boolean Flags
-Of course, there is a lot more we can do with positional arguments. But
-I'll get back to the advanced features down below. For now, let's look at
-the next supported argument type, boolean flags.
+### Named Options
 
-What if we want to do the _Hello world_ example using a boolean flag
-and a command that looks something like this?
+ParParse supports both long and short option types, as well as various
+methods of defining option values. Option values can be indicated by
+the following argument `--foo bar`, using an equals sign `--foo=bar`,
+a colon `--foo:bar`, or short alias concatenated `-fbar`. Also, for
+options with multiple values (an arity > 1) values can be separated
+as normal arguments or with commas `--foo=1,2,3`.
 
-`myscript.php "Hello world" --exclaim`
+#### Examples
+
+`myscript.php la ny -a bar -b 1 2 -foo=bar,baz`
 
 ```php
 $parser = new ParParse();
-$parser->argument('text')->help('A string of text to print.');
-$parser->flag('exclaim', 'x')->help('Use an exclamation point.');
-$results = $parser->parse();
-if ($results->exclaim) {
-  echo $results->text . '!';
-}
-```
-Note here the second argument to the flag. It's the short name of the flag,
-so this flag can be used via `--exclaim` or `-x`.
+// Note that an arity of -1 indicates no limit. This means the
+// arguments will be added until the next option switch is found.
+$parser->argument('city')
+  ->arity(ParParseArgument::ARITY_UNLIMITED) // Can also use -1
+  ->help('A random list of cities.');
 
-#### Named Options
-Finally, using the command line with only positional arguments and switches
-can be very limiting. When it comes to building a really useful command line
-tool we often need to be able to explicitly set values. Of course that can
-be done with ParParse as well.
-
-What if we change our _Hello world!_ example to use some optional arguments?
-Maybe we want a flag to print it in all caps and be able to optionally append
-a name to the positional argument's text.
-
-`myscript.php Hello -c --name James -s=!`
-
-Here we still have the same positional argument as before, but with a boolean
-flag for capitalizing the text `-c`, an option for a name `--name`, and another
-option for the suffix of the string `-s`.
-
-```php
-$parser->argument('text')->help('A string of text to print.');
-$parser->flag('caps', 'c')->help('Capitalize text.');
-$parser->option('name')->short('n')->help('An optional name.');
-$results = $parser->parse();
-$text = $results->text;
-if ($results->name) {
-  $text .= $results->name;
-}
-if ($results->caps) {
-  $text = strtoupper($text);
-}
-```
-
-### Advanced Features
-
-Now, it looks like some useful features could cut down on the use of code.
-Time for another program - a math program. We want to be able to do basic
-calculations using a simple command.
-
-`mathscript.php 1.2 3.4 4.5 --calc=sum --round`
-
-```php
-$parser->argument('numbers')
-  ->arity(ParParseArgument::ARITY_UNLIMITED)
-  ->type(ParParseArgument::DATATYPE_FLOAT)
-  ->help('A list of numbers to calculate.');
-
-$parser->option('calc', 'c')
-  ->default(NULL)
-  ->help('The function to use to perform calculations.');
-
-$parser->flag('round', 'r')->help('Indicates that the result should be rounded to the nearest zero.');
-$results = $parser->parse();
-echo $results->numbers; // array(1.2, 3.4, 4.5);
-// Calculate the result.
-```
-
-Note here that I used a couple new methods. The arity setting indicates how
-many instances of the argument are _allowed_. `ArgParseElement::arity()` is
-available on all types of elements - the `ArgParseElement` class is the base
-of both `ArgParseArgument` and `ArgParseOption`, and the flag element is
-simply an `ArgParseOption` object with an arity of `0`. The arity of all
-elements always defaults to 1, except for the special case of flags. Note
-that there is a separate method for setting the _minimum_ number of arguments
-required in options (minimums do not work with positional arguments because
-of their nature).
-
-Also, this snippet introduces the data type settings as well. Data type
-constants simply indicate the data type string required by PHP's `settype()`
-function, so you can simply pass a string matching the appropriate data
-type as well. _The data type will be applied to each value_, not the entire
-set of values.
-
-#### Default values
-
-Finally, we set a simple default value on the `calc` option. Note that there
-are some important caveats to using default values. When working with positional
-arguments, default values can only be applied to the last positional argument.
-When setting the default value of an element that supports multiple values (has
-an arity > 1) you can either set a non-array value that will apply to all elements
-of the resulting array of an array of default values. Take this example:
-
-```php
-$parser->option('foo')->arity(3)->min(1)
-  ->default(array(3, 2, 1))->type('int');
-```
-If we use the command `myscript.php --foo 1` the result will be:
-```php
-$results = $parser->parse();
-print $results->foo; // array(1, 2, 1);
-```
-Since the command met the minimum limit of one but not the arity, the rest
-of the default values were applied. Note that array defaults *must* match the
-arity number unless the arity is unlimited.
-
-#### Validation
-
-In the case of the last example, we need a way to validate that the calculation
-function being passed is one that is acceptable for various reasons, one of
-which might be security in some cases.
-
-```php
-function validate_calc($calc) {
-  return $calc == 'sum';
-}
-
-$parser->option('calc', 'c')
-  ->validate('validate_calc')
+// Setting the type to 'string' is not really necessary here since
+// all command line arguments are strings.
+$parser->option('alpha', 'a')
   ->type('string')
-  ->help('A calculation function.');
+  ->default('')
+  ->help('A simple string.');
+
+// Setting the default value to 0 will apply 0 to *each* of
+// the option's two required arguments.
+$parser->option('beta', 'b')
+  ->arity(2)
+  ->type('int')
+  ->default(0)
+  ->help('A list of numbers.');
+
+// Here we set an option with a minimum of two and maximum of
+// three arguments using the min(2) method with an arity of 3.
+$parser->option('foo', 'f')
+  ->arity(3)
+  ->default(array('a', 'b', 'c'))
+  ->min(2)
+  ->help('A minimum of two and maximum of three strings.');
 ```
 
-#### A final note on syntax
+The `arity()` property indicates the number of arguments expected,
+and the `min()` property indicates the minimum number of arguments
+required. In cases where multiple arguments are expected, the option
+can accept an array of default values rather than a single default
+for each argument.
+
+Note the array of three default values in the last option. Look at
+the result if we enter the following command on the command line:
+
+`myscript.php -a bar -b 1 2 -f 3 4`
+
+```php
+$results = $parser->parse();
+print_r($results->city);
+echo $results->alpha;
+echo $results->beta;
+print_r($results->foo);
+```
+
+Note that in the last option which uses an array of defaults, the
+last element will retain the default value, while the first two
+default values are overridden by the command line arguments.
+```
+Array
+(
+  [0] => 'la'
+  [1] => 'ny'
+)
+bar
+Array
+(
+  [0] => 1
+  [1] => 2
+)
+Array
+(
+  [0] => 3
+  [1] => 4
+  [2] => 'c'
+)
+```
+
+### Boolean flags
+
+Actually, you've already seen how to implement boolean flags. Simply
+set an option's arity to `0` and you have a boolean flag. However,
+ParParse also provides a helper method to simplify the creating and
+setting up of switches.
+
+#### Examples
+
+`myscript.php foo -a b -c`
+
+```php
+$parser = new ParParse();
+$parser->argument('first')->default(NULL)->help('Some help you are!');
+
+$parser->option('alpha', 'a')->default(FALSE)->help('A simple option.');
+
+// Here's where we get to the flag.
+$parser->flag('charlie', 'c')->help('Foo.');
+$parser->flag('delta', 'd')->help('Bar.');
+
+// Alternatively, we could define the flag like this...
+$parser->option('charlie', 'c')->arity(0)->type('bool')->help('Foo.');
+```
+Now we parse the commands.
+```php
+$results = $parser->parse();
+print $results->first;
+print $results->alpha;
+print $reuslts->charlie;
+print $results->delta;
+```
+
+```
+foo
+b
+true
+false
+```
+
+### Argument Validation
+All command line element types available in ParParse can be validated
+using custom validation callbacks. Simply call the `validate()` or
+`setValidator()` (alternate syntax) method on the element.
+
+```php
+// The value will be passed as the indicated data type, in this case int.
+function validate_under_100($value) {
+  return $value < 100;
+}
+
+$parser->argument('foo')
+  ->type('int')
+  ->arity(2)
+  ->default(10)
+  ->validate('validate_under_100')
+  ->help('A bunch of numbers.');
+```
+
+What happens if we enter a bad number?
+
+`myscript.php 12345`
+
+```
+Invalid argument(s) for 'foo'.
+Usage: myscript.php foo
+-h|--help                               Display command usage information.
+
+Arguments:
+  foo                                   A bunch of numbers.
+```
+
+#### Alternate Syntax
 The syntax demonstrated in this documentation is really only one way out
 of a few different ways to accomplish the same tasks. Internally, all the
 command line element classes in ParParse use methods prefixed with 'set'

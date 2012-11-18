@@ -97,29 +97,29 @@ class ParParse {
   /**
    * Adds a flag definition to the argument parser.
    *
-   * @param string $long
+   * @param string $name
    *   The flag long name.
-   * @param string|null $short
-   *   The flag short name.
+   * @param string|null $alias
+   *   The flag short alias.
    * @param array $options
    *   An optional associative array of additional flag options.
    */
-  public function flag($long, $short = NULL, array $options = array()) {
-    return $this->option($long, $short, $options)->arity(0);
+  public function flag($name, $alias = NULL, array $options = array()) {
+    return $this->option($name, $alias, $options)->arity(0);
   }
 
   /**
    * Adds an option definition to the argument parser.
    *
-   * @param string $long
-   *   The option's long machine-name identifier, with or without two dashes.
-   * @param string|null $short
-   *   The option's short name identifier, with or without one dash.
+   * @param string $name
+   *   The option's long machine-name, with or without two dashes.
+   * @param string|null $alias
+   *   The option's short alias, with or without one dash.
    * @paam array $options
    *   An associative array of additional option options.
    */
-  public function option($long, $short = NULL, array $options = array()) {
-    return $this->addElement(new ParParseOption($long, $short, $options));
+  public function option($name, $alias = NULL, array $options = array()) {
+    return $this->addElement(new ParParseOption($name, $alias, $options));
   }
 
   /**
@@ -809,25 +809,11 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   const NAME_NONE = NULL;
 
   /**
-   * The option's long name. Defaults to the option name upon construction.
-   *
-   * @var string
-   */
-  private $long = NULL;
-
-  /**
-   * The option's short name. Defaults to NULL.
+   * The option's short alias. Defaults to NULL.
    *
    * @var string|null
    */
-  private $short = NULL;
-
-  /**
-   * An array of option aliases.
-   *
-   * @var array
-   */
-  private $aliases = array();
+  private $alias = NULL;
 
   /**
    * The minimum number of arguments expected by this option when present.
@@ -839,17 +825,16 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   /**
    * Constructor.
    *
-   * @param string $long
+   * @param string $name
    *   The element's unique long machine-name.
-   * @param string|null $short
-   *   The element's unique short machine-name.
+   * @param string|null $alias
+   *   The element's unique short alias.
    * @param array $options
    *   An associative array of additional option options.
    */
-  public function __construct($long, $short = NULL, array $options = array()) {
-    $this->setLong($long);
-    $options += array('short' => $short);
-    parent::__construct($long, $options);
+  public function __construct($name, $alias = NULL, array $options = array()) {
+    $options += array('alias' => $alias);
+    parent::__construct($name, $options);
   }
 
   /**
@@ -860,11 +845,11 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    */
   public function printUsage() {
     $usage = '[';
-    if ($this->short) {
-      $usage .= '-'. $this->short;
+    if ($this->alias) {
+      $usage .= '-'. $this->alias;
     }
     else {
-      $usage .= '--'. $this->long;
+      $usage .= '--'. $this->name;
     }
 
     if ($this->arity == 1) {
@@ -888,14 +873,14 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    */
   public function printHelp($indent = '') {
     $output = $indent;
-    if ($this->long) {
-      $output .= '--'. $this->long;
-      if ($this->short) {
-        $output .= ' | -'. $this->short;
+    if ($this->name) {
+      $output .= '--'. $this->name;
+      if ($this->alias) {
+        $output .= ' | -'. $this->alias;
       }
     }
-    else if ($this->short) {
-      $output .= '-'. $this->short;
+    else if ($this->alias) {
+      $output .= '-'. $this->alias;
     }
 
     $left_len = strlen($output);
@@ -916,21 +901,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    */
   public function parse(array &$args) {
     $num_args = count($args);
-
-    // If the option's aurity is 0 then this is a boolean flag.
-    // If the option's aurity is unlimited then get all argument after.
-
-    if (isset($this->long)) {
-      $long_id = '--'. $this->long;
-    }
-    if (isset($this->short)) {
-      $short_id = '-'. $this->short;
-    }
-    $alias_ids = array();
-    foreach ($this->aliases as $alias) {
-      $alias_ids[] = '--'. $alias;
-    }
-
     if ($this->arity == 0) {
       return $this->parseFlag($args);
     }
@@ -945,11 +915,11 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   private function parseFlag(array &$args) {
     $num_args = count($args);
     for ($i = 0; $i < $num_args; $i++) {
-      if (isset($this->long) && $args[$i] == '--'. $this->long) {
+      if (isset($this->name) && $args[$i] == '--'. $this->name) {
         unset($args[$i]);
         return $this->applyDataType(TRUE);
       }
-      else if (isset($this->short) && $args[$i] == '-'. $this->short) {
+      else if (isset($this->alias) && $args[$i] == '-'. $this->alias) {
         unset($args[$i]);
         return $this->applyDataType(TRUE);
       }
@@ -972,15 +942,9 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    */
   private function parseOption(array &$args) {
     $num_args = count($args);
-    $option_ids = array();
-    if (isset($this->long)) {
-      $option_ids[] = '--'. $this->long;
-    }
-    if (isset($this->short)) {
-      $option_ids[] = '-'. $this->short;
-    }
-    foreach ($this->aliases as $alias) {
-      $alias_ids[] = '--'. $alias;
+    $option_ids = array('--'. $this->name);
+    if (isset($this->alias)) {
+      $option_ids[] = '-'. $this->alias;
     }
     foreach ($option_ids as $option_id) {
       for ($i = 0; $i < $num_args; $i++) {
@@ -994,8 +958,8 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         }
       }
     }
-    if ($this->short && strpos($args[$i], '-'. $this->short) === 0 && strlen($args[$i]) > strlen($this->short) + 1) {
-      return $this->getValueFromArg($args, $i, '-'. $this->short);
+    if ($this->alias && strpos($args[$i], '-'. $this->alias) === 0 && strlen($args[$i]) > strlen($this->alias) + 1) {
+      return $this->getValueFromArg($args, $i, '-'. $this->alias);
     }
     return $this->defaultValue;
   }
@@ -1143,33 +1107,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   }
 
   /**
-   * Sets the option's long name.
-   *
-   * @param string|null $long
-   *   The option's long name. If no name is given then the option
-   *   will be assumed to have no long name.
-   *
-   * @return ParParseOption
-   *   The called object.
-   */
-  public function setLong($long) {
-    if (!is_string($long) && !is_null($long)) {
-      throw new InvalidArgumentException('Invalid long name. Long name must be a string.');
-    }
-    if (!isset($long)) {
-      $this->long = NULL;
-      return $this;
-    }
-    if (strpos($long, '--') === 0) {
-      $this->long = substr($long, 2);
-    }
-    else {
-      $this->long = $long;
-    }
-    return $this;
-  }
-
-  /**
    * Sets the option's short name.
    *
    * @param string $alias
@@ -1179,37 +1116,20 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    * @return ParParseOption
    *   The called object.
    */
-  public function setShort($short = NULL) {
-    if (!isset($short)) {
-      $this->short = NULL;
+  public function setAlias($alias = NULL) {
+    if (!isset($alias)) {
+      $this->alias = NULL;
       return $this;
     }
-    if (!is_string($short)) {
-      throw new InvalidArgumentException('Invalid short name. Short name must be a string.');
+    if (!is_string($alias)) {
+      throw new InvalidArgumentException('Invalid short alias. Short alias must be a string.');
     }
-    if (strpos($short, '-') === 0) {
-      $this->short = substr($short, 1);
+    if (strpos($alias, '-') === 0) {
+      $this->alias = substr($alias, 1);
     }
     else {
-      $this->short = $short;
+      $this->alias = $alias;
     }
-    return $this;
-  }
-
-  /**
-   * Adds an option alias.
-   *
-   * @param string $alias
-   *   The option alias.
-   *
-   * @return ParParseOption
-   *   The called object.
-   */
-  public function addAlias($alias) {
-    if (!is_string($alias)) {
-      throw new InvalidArgumentException('Invalid alias. Alias must be a string.');
-    }
-    $this->aliases[] = $alias;
     return $this;
   }
 
