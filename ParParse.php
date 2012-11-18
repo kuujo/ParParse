@@ -638,8 +638,11 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
 
     // Ensure the correct number of arguments even exist.
     // Default values can only be applied to the last positional argument definition.
+    // If the argument's default value is not an array then that default value
+    // will be applied up to the arity number. If the default value is an array then
+    // it *must* have the same number of values as the arity in order to work properly.
     $num_valid_args = count($valid_args);
-    if (($num_valid_args === 0 || $num_valid_args < $this->arity) && (!$last_arg || !$this->hasDefault)) {
+    if (($num_valid_args === 0 || $num_valid_args < $this->arity) && (!$last_arg || !$this->hasDefault || (is_array($this->defaultValue) && count($this->defaultValue) < $this->arity))) {
       throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->name .' expects '. $this->arity .' arguments.');
     }
 
@@ -774,6 +777,13 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   private $aliases = array();
 
   /**
+   * The minimum number of arguments expected by this option when present.
+   *
+   * @var int
+   */
+  private $min = 0;
+
+  /**
    * Constructor.
    *
    * @param string $long
@@ -874,28 +884,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     else {
       return $this->parseOption($args);
     }
-
-    for ($i = 0; $i < $num_args; $i++) {
-      if (isset($this->long)) {
-        $result = $this->checkArg($args, $i, $long_id);
-        if (isset($result)) {
-          return $result;
-        }
-      }
-      if (isset($this->short)) {
-        $result = $this->checkArg($args, $i, $short_id);
-        if (isset($result)) {
-          return $result;
-        }
-      }
-      foreach ($alias_ids as $alias_id) {
-        $result = $this->checkArg($args, $i, $alias_id);
-        if (isset($result)) {
-          return $result;
-        }
-      }
-    }
-    return $this->defaultValue;
   }
 
   /**
@@ -972,29 +960,32 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     $value = substr($arg, strlen($prefix));
     // If the arity is greater than one then return this as an array.
     if ($this->arity == self::ARITY_UNLIMITED || $this->arity > 1) {
-      // defaults = array(1, 2, 3)
-      // values = array(1, 2)
-      $default_values = $this->defaultValue;
       $values = array_map('trim', explode(',', trim($value, '"')));
-      if (is_array($default_values)) {
-        if (count($values) < $this->arity && count($default_values) < $this->arity) {
-          throw new ParParseMissingArgumentException($this->name .' requires '. $this->arity .' arguments.');
-        }
-        for ($i = 0, $value_count = count($values); $i < $value_count; $i++) {
-          $default_values[$i] = $this->applyDataType($values[$i]);
-        }
-        return $default_values;
+
+      $defaults = array();
+      if (is_array($this->defaultValue)) {
+        $defaults = $this->defaultValue;
       }
-      else {
+      else if ($this->arity > 0) {
+        for ($i = 0; $i < $this->arity; $i++) {
+          $defaults[] = $this->defaultValue;
+        }
+      }
+
+      foreach ($values as $key => $value) {
+        $values[$key] = $this->applyDataType($value);
+      }
+
+      if (count($values) < $this->arity) {
+        $values = array_values($values) + array_values($defaults);
         if (count($values) < $this->arity) {
-          throw new ParParseMissingArgumentException($this->name .' requires '. $this->arity .' arguments.');
+          throw new ParParseMissingArgumentException($this->name .' expects '. $this->arity .' arguments.');
         }
-        $return_values = array();
-        foreach ($values as $value) {
-          $return_values[] = $this->applyDataType($value);
+        if (count($values) < $this->min) {
+          throw new ParParseMissingArgumentException($this->name .' expects at least '. $this->min .' arguments.');
         }
-        return $return_values;
       }
+      return $values;
     }
     return $this->applyDataType($value);
   }
@@ -1014,15 +1005,20 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     unset($args[$position]);
     $position++;
 
+    $defaults = array();
+    if (is_array($this->defaultValue)) {
+      $defaults = $this->defaultValue;
+    }
+    else if ($this->arity > 0) {
+      for ($i = 0; $i < $this->arity; $i++) {
+        $defaults[] = $this->defaultValue;
+      }
+    }
+
     // If this argument has unlimited arity then get all valid
     // arguments up to the next option.
     if ($this->arity == self::ARITY_UNLIMITED) {
-      $values = array();
-      // If default value is an array then apply the given arguments
-      // over the array of default values.
-      if (is_array($this->defaultValue)) {
-        $values = $this->defaultValue;
-      }
+      $values = $defaults;
       for ($i = $position, $index = 0, $num_args = count($args); $i < $num_args; $i++) {
         if (strpos($args[$i], '-') !== 0) {
           $values[$index++] = $this->applyDataType($args[$i]);
@@ -1031,6 +1027,10 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         else {
           break;
         }
+      }
+
+      if (count($values) < $this->min) {
+        throw new ParParseMissingArgumentException($this->name .' expects at least '. $this->min .' arguments.');
       }
       return $values;
     }
@@ -1043,17 +1043,19 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         }
         else {
           $values[] = $this->applyDataType($args[$i]);
+          unset($args[$i]);
         }
       }
 
       // If the number of values given were less than the arity then try to
       // apply default values.
       if (count($values) < $this->arity) {
-        if (is_array($this->defaultValue) && count($this->defaultValue) > $count(values)) {
-          $values = array_values($values) + array_values($this->defaultValue);
-        }
+        $values = array_values($values) + array_values($defaults);
         if (count($values) < $this->arity) {
           throw new ParParseMissingArgumentException($this->name .' expects '. $this->arity .' arguments.');
+        }
+        if (count($values) < $this->min) {
+          throw new ParParseMissingArgumentException($this->name .' expects at least '. $this->min .' arguments.');
         }
       }
       return $values;
@@ -1132,6 +1134,26 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   }
 
   /**
+   * Sets the minimum number of arguments expected by this option when present.
+   *
+   * @param int $min
+   *   The minimum number of arguments expected by this option when present.
+   *
+   * @return ParParseOption
+   *   The called object.
+   */
+  public function setMin($min) {
+    if (!is_numeric($min)) {
+      throw new InvalidArgumentException('Minimum argument must be numeric.');
+    }
+    else if ($this->arity > self::ARITY_UNLIMITED && $min > $this->arity) {
+      throw new InvalidArgumentException('Minimum argument must be less than or equal to the option arity.');
+    }
+    $this->min = (int) $min;
+    return $this;
+  }
+
+  /**
    * Sets the option's data type.
    *
    * If the data type is set to 'bool' then we assume that this option
@@ -1148,6 +1170,29 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
       $this->arity = 0;
     }
     return parent::setType($data_type);
+  }
+
+  /**
+   * Sets the option's default value.
+   *
+   * Validate the default value. If the default value is an array then it
+   * must match an option with an arity above 1. Also, the array length must
+   * match the arity, so arity must be set before the default value. If the
+   * default value is not an array then it will simply be applied to all
+   * elements of the result.
+   *
+   * @param mixed $default
+   *   The default value.
+   *
+   * @return ParParseOption
+   *   The called object.
+   */
+  public function setDefault($default) {
+    if (is_array($default) && ($this->arity > self::ARITY_UNLIMITED && count($default) != $this->arity)) {
+      throw new InvalidArgumentException('Defaults of type Array must have a length matching the arity of the option.');
+    }
+    $this->defaultValue = $default;
+    return $this;
   }
 
   /**
@@ -1234,7 +1279,7 @@ class ParParseException extends Exception {}
 class ParParseMissingArgumentException extends ParParseException {}
 
 $parser = new ParParse();
-$parser->argument('foo')->arity(2)->help('Foo argument does bar.');
+$parser->argument('foo')->arity(2)->default(array(1))->help('Foo argument does bar.');
 
 // Setting the 'type' to 'bool' automatically turns this into a switch.
 // Any arguments given after the switch will be ignored.
@@ -1247,6 +1292,11 @@ $parser->flag('baz')->short('ba')->type('bool')->help('Baz option does boo.');
 $parser->option('boo')->short('o')->type('int')->help('Boo option does foo.');
 
 $results = $parser->parse();
+
+$parser->option('foo')->short('f')->arity(3)->default(array(1, 2, 3))->min(2)->type('int');
+// ParParse.php --foo 1 2 --bar
+// if the min is 2 and the arity is 3 and 2 arguments are entered
+// then fill the third with the default value.
 
 echo 'Foo is: '. $results->foo.PHP_EOL;
 
