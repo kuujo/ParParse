@@ -26,17 +26,17 @@ positional arguments can also be optional and support default values.
 ```php
 $parser = new ParParse();
 $parser->argument('foo')
-  ->type('int')
-  ->default(1)
-  ->validator('my_validation_callback')
-  ->help('Foo does bar.');
-
-// Or, using alternate syntax (see below).
-$parser->argument('foo')
   ->setType('int')
   ->setDefault(1)
   ->setValidator('my_validation_callback')
   ->setHelp('Foo does bar.');
+
+// Or, using alternate syntax (I prefer the alternate syntaxt, see below).
+$parser->argument('foo')
+  ->type('int')
+  ->default(1)
+  ->validator('my_validation_callback')
+  ->help('Foo does bar.');
 
 $results = $parser->parse();
 ```
