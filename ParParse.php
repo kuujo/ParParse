@@ -378,6 +378,13 @@ abstract class ParParseElement implements ParParseElementInterface {
   protected $arity = 1;
 
   /**
+   * A validation callback.
+   *
+   * @var string|null
+   */
+  protected $validator = NULL;
+
+  /**
    * The argument's data type.
    *
    * @var string|null
@@ -543,6 +550,12 @@ abstract class ParParseElement implements ParParseElementInterface {
   /**
    * Sets the element's default value.
    *
+   * Validate the default value. If the default value is an array then it
+   * must match an element with an arity above 1. Also, the array length must
+   * match the arity, so arity must be set before the default value. If the
+   * default value is not an array then it will simply be applied to all
+   * elements of the result.
+   *
    * @param mixed $default
    *   The default value.
    *
@@ -550,6 +563,9 @@ abstract class ParParseElement implements ParParseElementInterface {
    *   The called object.
    */
   public function setDefault($default) {
+    if (is_array($default) && ($this->arity > self::ARITY_UNLIMITED && count($default) != $this->arity)) {
+      throw new InvalidArgumentException('Defaults of type Array must have a length matching the arity of the option.');
+    }
     $this->defaultValue = $default;
     return $this;
   }
@@ -581,19 +597,56 @@ abstract class ParParseElement implements ParParseElementInterface {
    *   The new value with the data type applied.
    */
   protected function applyDataType($value) {
-    if (!isset($this->dataType)) {
-      return $value;
-    }
-    if (in_array($this->dataType, self::$dataTypes)) {
-      settype($value, $this->dataType);
-      return $value;
-    }
-    else {
-      if (!class_exists($this->dataType)) {
-        throw new InvalidArgumentException('Invalid data type '. $this->dataType .'. Data type must be a PHP type or available class.');
+    if (isset($this->dataType)) {
+      if (in_array($this->dataType, self::$dataTypes)) {
+        settype($value, $this->dataType);
       }
-      return new $this->dataType($value);
+      else {
+        if (!class_exists($this->dataType)) {
+          throw new InvalidArgumentException('Invalid data type '. $this->dataType .'. Data type must be a PHP type or available class.');
+        }
+        $value = new $this->dataType($value);
+      }
     }
+
+    $result = $this->validate($value);
+    if (!$result) {
+      throw new ParParseInvalidArgumentException('Invalid argument(s) for '. $this->name .'.');
+    }
+    return $result;
+  }
+
+  /**
+   * Sets the value validator.
+   *
+   * @param string $validator
+   *   The validator callback.
+   *
+   * @return ParParseElement
+   *   The called object.
+   */
+  public function setValidate($callback) {
+    $this->validator = $callback;
+    return $this;
+  }
+
+  /**
+   * Validates the element argument using validation callbacks.
+   *
+   * @param mixed $value
+   *   The argument value.
+   *
+   * @return bool
+   *   Indicates whether the argument is valid.
+   */
+  protected function validate($value) {
+    if (!isset($this->validator)) {
+      return TRUE;
+    }
+    if (!is_callable($this->validator)) {
+      throw new InvalidArgumentException('Invalid validator '. $this->validator .'.');
+    }
+    return call_user_func($this->validator, $value);
   }
 
 }
@@ -1173,29 +1226,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   }
 
   /**
-   * Sets the option's default value.
-   *
-   * Validate the default value. If the default value is an array then it
-   * must match an option with an arity above 1. Also, the array length must
-   * match the arity, so arity must be set before the default value. If the
-   * default value is not an array then it will simply be applied to all
-   * elements of the result.
-   *
-   * @param mixed $default
-   *   The default value.
-   *
-   * @return ParParseOption
-   *   The called object.
-   */
-  public function setDefault($default) {
-    if (is_array($default) && ($this->arity > self::ARITY_UNLIMITED && count($default) != $this->arity)) {
-      throw new InvalidArgumentException('Defaults of type Array must have a length matching the arity of the option.');
-    }
-    $this->defaultValue = $default;
-    return $this;
-  }
-
-  /**
    * Sets the option's arity.
    *
    * Similar to when data types are set, if the arity is set to zero
@@ -1272,6 +1302,13 @@ class ParParseResult {
 class ParParseException extends Exception {}
 
 /**
+ * Invalid argument exception.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
+ */
+class ParParseInvalidArgumentException extends ParParseException {}
+
+/**
  * Missing argument exception.
  *
  * @author Jordan Halterman <jordan.halterman@gmail.com>
@@ -1279,7 +1316,10 @@ class ParParseException extends Exception {}
 class ParParseMissingArgumentException extends ParParseException {}
 
 $parser = new ParParse();
-$parser->argument('foo')->arity(2)->default(array(1))->help('Foo argument does bar.');
+function validate_foo($value) {
+  return TRUE;
+}
+$parser->argument('foo')->arity(2)->default(array(1))->validate('validate_foo')->type('int')->help('Foo argument does bar.');
 
 // Setting the 'type' to 'bool' automatically turns this into a switch.
 // Any arguments given after the switch will be ignored.
@@ -1293,7 +1333,7 @@ $parser->option('boo')->short('o')->type('int')->help('Boo option does foo.');
 
 $results = $parser->parse();
 
-$parser->option('foo')->short('f')->arity(3)->default(array(1, 2, 3))->min(2)->type('int');
+// $parser->option('foo')->short('f')->arity(3)->default(array(1, 2, 3))->min(2)->type('int')->help('blah');
 // ParParse.php --foo 1 2 --bar
 // if the min is 2 and the arity is 3 and 2 arguments are entered
 // then fill the third with the default value.
