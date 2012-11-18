@@ -112,9 +112,9 @@ can accept an array of default values rather than a single default
 for each argument.
 
 Note the array of three default values in the last option. Look at
-the result if we enter the following command on the command line:
+the result if we run the script using the example command:
 
-`myscript.php -a bar -b 1 2 -f 3 4`
+`myscript.php la ny -a bar -b 1 2 -f 3 4`
 
 ```php
 $results = $parser->parse();
@@ -152,7 +152,7 @@ Array
 Actually, you've already seen how to implement boolean flags. Simply
 set an option's arity to `0` and you have a boolean flag. However,
 ParParse also provides a helper method to simplify the creating and
-setting up of switches.
+setting up of boolean type switches.
 
 #### Examples
 
@@ -189,8 +189,8 @@ false
 
 ### Argument Validation
 All command line element types available in ParParse can be validated
-using custom validation callbacks. Simply call the `validate()` or
-`setValidator()` (alternate syntax) method on the element.
+using custom validation callbacks. Simply call the `setValidator()` or
+`validate()` (alternate syntax) method on the element.
 
 ```php
 // The value will be passed as the indicated data type, in this case int.
@@ -225,10 +225,22 @@ of a few different ways to accomplish the same tasks. Internally, all the
 command line element classes in ParParse use methods prefixed with 'set'
 and use the magic `__call()` method to access them in the way demonstrated.
 You can use either method at your discretion:
+
 ```php
 $parser = new ParParse();
 $parser->argument('foo')
   ->setArity(2)
   ->setDefault(FALSE)
   ->setHelp('Foo does bar.');
+```
+
+Alternatively, you can construct a `ParParseArgument` or `ParParseOption`
+object completely separate from the `ParParse` class API and call the
+`ParParse::addElement()` method to add the element to the parser.
+
+```php
+$parser = new ParParse();
+$arg = new ParParseArgument('foo');
+$arg->setType('int')->setArity(2)->setDefault(array(1, 2))->setHelp('A couple numbers.');
+$parser->addElement($arg);
 ```
