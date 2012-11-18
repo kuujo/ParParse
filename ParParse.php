@@ -1350,7 +1350,7 @@ $parser->option('bar')->short('b')->type('bool')->help('Bar option does baz.');
 
 $parser->flag('baz')->short('ba')->type('bool')->help('Baz option does boo.');
 
-$parser->option('boo')->short('o')->type('int')->help('Boo option does foo.');
+$parser->option('boo')->short('o')->type('int')->min(0)->help('Boo option does foo.');
 
 $results = $parser->parse();
 
