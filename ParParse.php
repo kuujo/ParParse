@@ -66,8 +66,8 @@ class ParParse {
    */
   public function __call($method, array $args) {
     $method = 'add'. ucfirst($method);
-    if (method_exists($method)) {
-      return call_user_func_array($method, $args);
+    if (method_exists($this, $method)) {
+      return call_user_func_array(array($this, $method), $args);
     }
   }
 
