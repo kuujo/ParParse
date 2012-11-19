@@ -748,6 +748,7 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
         }
         return $this->defaultValue;
       default:
+        $values = array();
         if (is_array($this->defaultValue)) {
           $values = $this->defaultValue;
         }
