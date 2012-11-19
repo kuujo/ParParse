@@ -413,7 +413,7 @@ abstract class ParParseElement implements ParParseElementInterface {
    *
    * @var bool
    */
-  private $hasDefault = FALSE;
+  protected $hasDefault = FALSE;
 
   /**
    * The argument's default value.
@@ -940,12 +940,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         unset($args[$i]);
         return $this->applyDataType(TRUE);
       }
-      foreach ($this->aliases as $alias) {
-        if ($args[$i] == '--'. $alias) {
-          unset($args[$i]);
-          return $this->applyDataType(TRUE);
-        }
-      }
     }
     // If no explicit default has been assigned then return FALSE.
     if (!$this->hasDefault) {
@@ -963,20 +957,21 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     if (isset($this->alias)) {
       $option_ids[] = '-'. $this->alias;
     }
-    foreach ($option_ids as $option_id) {
-      for ($i = 0; $i < $num_args; $i++) {
+    for ($i = 0; $i < $num_args; $i++) {
+      foreach ($option_ids as $option_id) {
         if ($args[$i] == $option_id) {
           return $this->getValueFromNextArg($args, $i);
         }
-        foreach (array('=', ':') as $separator) {
-          if (strpos($args[$i], $option_id.$separator) === 0) {
-            return $this->getValueFromArg($args, $i, $option_id.$separator);
-          }
+        else if (strpos($args[$i], $option_id.'=') === 0) {
+          return $this->getValueFromArg($args, $i, $option_id.'=');
+        }
+        else if (strpos($args[$i], $option_id.':') === 0) {
+          return $this->getValueFromArg($args, $i, $option_id.':');
         }
       }
-    }
-    if ($this->alias && strpos($args[$i], '-'. $this->alias) === 0 && strlen($args[$i]) > strlen($this->alias) + 1) {
-      return $this->getValueFromArg($args, $i, '-'. $this->alias);
+      if ($this->alias && strpos($args[$i], '-'. $this->alias) === 0 && strlen($args[$i]) > strlen($this->alias) + 1) {
+        return $this->getValueFromArg($args, $i, '-'. $this->alias);
+      }
     }
     return $this->defaultValue;
   }
