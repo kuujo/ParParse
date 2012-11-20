@@ -731,7 +731,7 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
     // it *must* have the same number of values as the arity in order to work properly.
     $num_valid_args = count($valid_args);
     if (($num_valid_args === 0 || $num_valid_args < $this->arity) && (!$last_arg || !$this->hasDefault || (is_array($this->defaultValue) && count($this->defaultValue) < $this->arity))) {
-      throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->name .' expects '. $this->arity .' arguments.');
+      throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->arity .' argument(s) expected.');
     }
 
     switch ($this->arity) {
