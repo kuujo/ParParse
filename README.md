@@ -306,3 +306,88 @@ $arg = new ParParseArgument('foo');
 $arg->setType('int')->setArity(2)->setDefault(array(1, 2))->setHelp('A couple numbers.');
 $parser->addElement($arg);
 ```
+
+### ParParse DSL
+ParParse now features a simple and limited [Domain-specific language](http://en.wikipedia.org/wiki/Domain-specific_language)
+that was implemented as an alternative to building argument definitions via the
+traditional object-oriented API. The ParParse language is purposely designed
+with a commonly understood syntax that generally follows the command-line usage
+information format. The parse simply converts the argument string into a
+normal ParParse object and returns it, so all standard ParParse argument methods
+are still accessible after the argument is defined.
+
+While this feature is still in development, here are a few examples of how
+the ParParse argument definition language is used.
+
+#### Positional Arguments
+
+As you'll see, arguments are denoted with surrounding brackets `<` and `>`.
+Optional arguments will have additional square brackets `[` and `]`.
+Unlimited arguments will be followed by three dots `...`.
+
+```php
+$parser = new ParParse();
+
+// This is a simple positional argument with an arity of 1.
+// Note that we define the help text after the two dashes.
+$parser->add('<foo> -- "Foo does bar."');
+
+// This is how we can access the argument.
+echo $parser->parse()->foo;
+
+// This positional argument has an arity of 1 but is not required.
+$parser->add('[<foo>] -- "Foo does bar, but is not required."');
+
+// This positional argument has an arity of 3.
+// All three arguments are required.
+$parser->add('<foo> <foo> <foo> -- "Foo does bar."');
+
+// This positional argument has an arity of 3 with only 1 required argument.
+$parser->add('<foo> [<foo>] [<foo>] -- "Foo does bar with at least 1 argument."');
+
+// This positional argument has an unlimited arity and no minimum.
+$parser->add('[<foo>...] -- "Foo does bar with unlimited arguments."');
+
+// This positional argument has unlimited arity with a minimum of one argument.
+$parser->add('<foo> [<foo> ...] -- "Foo does bar with unlimited arguments (at least 1)."');
+
+// Use the standard API on top of the language.
+$parser->add('<foo> <foo> -- "Foo does bar, twice."')->setType('string')->setDefault(array('Hello', 'world!'));
+```
+
+#### Optional Arguments
+
+Optional arguments are defined a little differently than positional
+arguments. The first argument will be the optional argument's switch,
+either a long flag prefixed by `--` or a short flag prefixed by `-`.
+If the option takes arguments then arguments follow. Long options
+with one argument can use an equals `=` sign and the argument name
+again in brackets `<` and `>`. Short options as usual do not use
+equals signs.
+
+```php
+$parser = new ParParse();
+
+// Boolean flags.
+$parser->add('--bar -- "A simple boolean flag."');
+$parser->add('--bar|-b -- "A simple boolean flag with a short alias."');
+
+// Access the boolean flag.
+echo $parser->parse()->bar;
+
+// Single value options.
+$parser->add('--bar|-b <foo> -- "A single value option."');
+$parser->add('--bar=<foo> -- "A single value option."');
+
+// Multi value options.
+$parser->add('--bar|-b <foo> <foo> -- "An option with two values."');
+$parser->add('--bar|-b <foo> [<foo>] -- "An option with two values, one required."');
+
+// Unlimited value options.
+$parser->add('--bar|-b <foo> [<foo>...] -- "An option with unlimited values, one required."');
+$parser->add('--bar|-b <foo> <foo> <foo> [<foo>...] -- "An option with unlimited values, three required."');
+
+// Using the API on top of the argument definition language.
+// Get a float value and validate that it's less than 100.
+$parser->add('--bar|-b <value> -- "A single value option."')->setType('float')->validate(create_function('$value', 'return $value < 100;'));
+```

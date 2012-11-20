@@ -1443,3 +1443,14 @@ class ParParseInvalidArgumentException extends ParParseException {}
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseMissingArgumentException extends ParParseException {}
+
+$parser = new ParParse();
+$parser->add('<partner> -- "The trading partner to process."');
+$parser->add('[<category>...] -- "An optional list of categories by which to filter."');
+$parser->add('--verbose|-v -- "Runs the translator in verbose mode.');
+$parser->add('--level=<level> -- "The verbosity level."');
+$parser->add('--test|-t -- "Runs the translator in test mode."');
+$parser->add('--channel|-c <address> -- "The translator RedMQ channel."');
+$parser->add('--outbound|-o <address> -- "The translator outbound topic address."');
+$parser->add('--status|-s <address> -- "The translator status topic address."');
+$args = $parser->parse();
