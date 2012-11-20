@@ -312,12 +312,13 @@ ParParse now features a simple and limited [Domain-specific language](http://en.
 that was implemented as an alternative to building argument definitions via the
 traditional object-oriented API. The ParParse language is purposely designed
 with a commonly understood syntax that generally follows the command-line usage
-information format. The parse simply converts the argument string into a
-normal ParParse object and returns it, so all standard ParParse argument methods
-are still accessible after the argument is defined.
+information format. Behind the scenes, the parser simply converts the argument
+string and returns a `ParParseArgument` or `ParParseOption` object appropriately
+configured according to the definition syntax. This ensures all standard
+ParParse argument methods are still accessible after the argument is defined.
 
 While this feature is still in development, here are a few examples of how
-the ParParse argument definition language is used.
+the ParParse argument definition language is used as of now.
 
 #### Positional Arguments
 
