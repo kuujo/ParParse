@@ -772,6 +772,12 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
             break;
           }
         }
+
+        // For arguments that have an unlimited arity and a scalar default
+        // value simply return the default if no arguments were specified.
+        if (empty($values) && $this->hasDefault) {
+          return $this->defaultValue;
+        }
         return $values;
     }
   }
