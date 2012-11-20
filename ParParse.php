@@ -963,23 +963,17 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    */
   private function parseOption(array &$args) {
     $num_args = count($args);
-    $option_ids = array('--'. $this->name);
-    if (isset($this->alias)) {
-      $option_ids[] = '-'. $this->alias;
-    }
     for ($i = 0; $i < $num_args; $i++) {
-      foreach ($option_ids as $option_id) {
-        if ($args[$i] == $option_id) {
-          return $this->getValueFromNextArg($args, $i);
-        }
-        else if (strpos($args[$i], $option_id.'=') === 0) {
-          return $this->getValueFromArg($args, $i, $option_id.'=');
-        }
-        else if (strpos($args[$i], $option_id.':') === 0) {
-          return $this->getValueFromArg($args, $i, $option_id.':');
-        }
+      if (isset($this->name) && $args[$i] == '--'. $this->name) {
+        return $this->getValueFromNextArg($args, $i);
       }
-      if ($this->alias && strpos($args[$i], '-'. $this->alias) === 0 && strlen($args[$i]) > strlen($this->alias) + 1) {
+      else if (isset($this->alias) && $args[$i] == '-'. $this->alias) {
+        return $this->getValueFromNextArg($args, $i);
+      }
+      else if (isset($this->name) && strpos($args[$i], '--'. $this->name .'=') === 0) {
+        return $this->getValueFromArg($args, $i, '--'. $this->name .'=');
+      }
+      else if (isset($this->alias) && strpos($args[$i], '-'. $this->alias) === 0 && strlen($args[$i]) > strlen($this->alias) + 1) {
         return $this->getValueFromArg($args, $i, '-'. $this->alias);
       }
     }
