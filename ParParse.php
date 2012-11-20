@@ -1046,8 +1046,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    *   The processed option value.
    */
   private function getValueFromNextArg(array &$args, $position) {
-    unset($args[$position]);
-    $position++;
+    $next = $position+1;
     $min = isset($this->min) ? $this->min : $this->arity;
 
     $defaults = array();
@@ -1063,15 +1062,15 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     // If this option has an arity of 1 then we return a single value
     // (rather than an array of values).
     if ($this->arity == 1) {
-      if (!isset($args[$position]) || strpos($args[$position], '-') === 0) {
+      if (!isset($args[$next]) || strpos($args[$next], '-') === 0) {
         if ($min > 0) {
           throw new ParParseMissingArgumentException($this->name .' expects one argument.');
         }
         return $this->defaultValue;
       }
       else {
-        $value = $args[$position];
-        unset($args[$position]);
+        $value = $args[$next];
+        unset($args[$position], $args[$next]);
         return $this->applyDataType($value);
       }
     }
@@ -1079,7 +1078,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     // arguments up to the next option.
     else if ($this->arity == self::ARITY_UNLIMITED) {
       $values = array();
-      for ($i = $position, $index = 0, $num_args = count($args); $i < $num_args; $i++) {
+      for ($i = $next, $index = 0, $num_args = count($args); $i < $num_args; $i++) {
         if (strpos($args[$i], '-') !== 0) {
           $values[$index++] = $this->applyDataType($args[$i]);
           unset($args[$i]);
@@ -1095,12 +1094,13 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
       if (count($values) < count($defaults)) {
         $values = array_values($values) + array_values($defaults);
       }
+      unset($args[$position]);
       return $values;
     }
     else {
       // First get all the values up to the next argument or the arity is reached.
       $values = array();
-      for ($i = $position; $i < $position + $this->arity; $i++) {
+      for ($i = $next; $i < $next + $this->arity; $i++) {
         if (!isset($args[$i]) || strpos($args[$i], '-') === 0) {
           break;
         }
@@ -1121,6 +1121,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
           throw new ParParseMissingArgumentException($this->name .' expects '. $this->arity .' arguments.');
         }
       }
+      unset($args[$position]);
       return $values;
     }
   }
