@@ -882,10 +882,13 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     else {
       $num_args = $this->arity;
       if ($this->arity == self::ARITY_UNLIMITED) {
-        $num_args = 3;
+        $num_args = 2;
       }
       for ($i = 0; $i < $num_args; $i++) {
         $usage .= ' <'. $this->name . $i .'>';
+      }
+      if ($this->arity == self::ARITY_UNLIMITED) {
+        $usage .= ' ...';
       }
     }
     $usage .= ']';
