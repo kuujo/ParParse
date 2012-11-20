@@ -72,6 +72,131 @@ class ParParse {
   }
 
   /**
+   * Adds an element via string usage definition.
+   *
+   * @param string $usage
+   *   The string usage definition.
+   */
+  public function add($usage) {
+    if (strpos($usage, '-') === 0) {
+      return $this->addUsageOption($usage);
+    }
+    else if (strpos($usage, '<') === 0 || strpos($usage, '[') === 0) {
+      return $this->addUsageArgument($usage);
+    }
+    else {
+      throw new InvalidArgumentException('Invalid usage string. No arguments found.');
+    }
+  }
+
+  /**
+   * Adds an argument via usage string.
+   *
+   * @param string $usage
+   *   The string usage definition.
+   */
+  private function addUsageArgument($usage) {
+    $parts = explode(' ', $usage);
+    if (strpos($parts[0], '[<') === 0 && strrpos($parts[0], '>]') === strlen($parts[0]) - 2) {
+      $name = substr($parts[0], 2, strlen($parts[0]) - 4);
+    }
+    else if (strpos($parts[0], '<') === 0 || strrpos($parts[0], '>') === strlen($parts[0]) - 1) {
+      $name = substr($parts[0], 1, strlen($parts[0]) - 2);
+    }
+    else if (strpos($parts[0], '[<') === 0 && strrpos($parts[0], '>...]') === strlen($parts[0]) - 5) {
+      $name = substr($parts[0], 2, strlen($parts[0]) - 7);
+    }
+    else {
+      throw new InvalidArgumentException('Invalid positional argument '. $usage .'. No argument placeholder defined.');
+    }
+    $argument = $this->addElement(new ParParseArgument($name));
+    return $this->parseUsageArguments($argument, $parts, $usage);
+  }
+
+  /**
+   * Adds an option via usage string.
+   *
+   * @param string $usage
+   *   The string usage definition.
+   */
+  private function addUsageOption($usage) {
+    $parts = explode(' ', $usage);
+
+    // Get the option long and short name and aliases.
+    $position = 0;
+    $name = array_shift($parts);
+    $names = explode('|', $name);
+    $long = $short = NULL;
+    $aliases = array();
+    foreach ($names as $name) {
+      if (strpos($name, '--') === 0) {
+        // If the name uses an equals sign for the value then remove the argument.
+        if (strpos($name, '=<') !== FALSE && strrpos($name, '>') === strlen($name) - 1) {
+          list($name, $arg) = explode('=', $name);
+          array_unshift($parts, $arg);
+        }
+        if (!isset($long)) {
+          $long = substr($name, 2);
+        }
+        else {
+          $aliases[] = substr($name, 2);
+        }
+      }
+      else if (strpos($name, '-') === 0) {
+        if (!isset($short)) {
+          $short = substr($name, 1);
+        }
+        else {
+          $aliases[] = substr($name, 1);
+        }
+      }
+    }
+    $option = $this->addElement(new ParParseOption($long, $short));
+    return $this->parseUsageArguments($option, $parts, $usage);
+  }
+
+  /**
+   * Parses element arguments to get arity and minimum number.
+   */
+  private function parseUsageArguments(ParParseElement $element, array $args, $usage) {
+    $arity = $min = 0;
+    $unlimited = FALSE;
+    for ($i = 0, $num_parts = count($args); $i < $num_parts; $i++) {
+      if ($args[$i] == '--') {
+        break;
+      }
+      if (strpos($args[$i], '[<') === 0 && strrpos($args[$i], '>]') === strlen($args[$i]) - 2) {
+        $arity++;
+      }
+      else if (strpos($args[$i], '[<') === 0 && strrpos($args[$i], '>...]') === strlen($args[$i]) - 5) {
+        $unlimited = TRUE;
+      }
+      else if (strpos($args[$i], '<') === 0 && strrpos($args[$i], '>') === strlen($args[$i]) - 1) {
+        $arity++;
+        $min++;
+      }
+      else {
+        break;
+      }
+    }
+
+    if ($unlimited) {
+      $element->setArity(-1);
+    }
+    else {
+      $element->setArity($arity);
+    }
+
+    $element->setMin($min);
+
+    $position = $i;
+    if ($args[$position] == '--') {
+      $element->setHelpText(trim(substr($usage, strpos($usage, ' -- ') + 4), '"'));
+    }
+    return $element;
+  }
+
+  /**
    * Adds a new parsable element to the parser.
    *
    * @param ParParseElement $element
@@ -388,6 +513,13 @@ abstract class ParParseElement implements ParParseElementInterface {
   protected $arity = 1;
 
   /**
+   * The minimum number of arguments expected by this option when present.
+   *
+   * @var int|null
+   */
+  protected $min = NULL;
+
+  /**
    * A validation callback.
    *
    * @var string|null
@@ -573,6 +705,26 @@ abstract class ParParseElement implements ParParseElementInterface {
   }
 
   /**
+   * Sets the minimum number of arguments expected by this option when present.
+   *
+   * @param int $min
+   *   The minimum number of arguments expected by this option when present.
+   *
+   * @return ParParseOption
+   *   The called object.
+   */
+  public function setMin($min) {
+    if (!is_numeric($min)) {
+      throw new InvalidArgumentException('Minimum argument must be numeric.');
+    }
+    else if ($this->arity > self::ARITY_UNLIMITED && $min > $this->arity) {
+      throw new InvalidArgumentException('Minimum argument must be less than or equal to the option arity.');
+    }
+    $this->min = (int) $min;
+    return $this;
+  }
+
+  /**
    * Sets the element's default value.
    *
    * Validate the default value. If the default value is an array then it
@@ -719,7 +871,7 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
     $valid_args = array();
     foreach ($args as $arg) {
       if (strpos($arg, '-') === 0) {
-        continue;
+        break;
       }
       $valid_args[] = $arg;
     }
@@ -732,6 +884,9 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
     $num_valid_args = count($valid_args);
     if (($num_valid_args === 0 || $num_valid_args < $this->arity) && (!$last_arg || !$this->hasDefault || (is_array($this->defaultValue) && count($this->defaultValue) < $this->arity))) {
       throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->arity .' argument(s) expected.');
+    }
+    else if (isset($this->min) && $num_valid_args < $this->min) {
+      throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->name .' expects at least '. $this->min .' argument(s).');
     }
 
     switch ($this->arity) {
@@ -746,7 +901,12 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
             return $this->applyDataType($value);
           }
         }
-        return $this->defaultValue;
+        if (!isset($this->min) || $this->min < 1) {
+          return $this->defaultValue;
+        }
+        else {
+          throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->name .' expects at least '. $this->min .' argument(s).');
+        }
       default:
         $values = array();
         if (is_array($this->defaultValue)) {
@@ -790,12 +950,27 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
    */
   public function printUsage() {
     $usage = '';
-    if ($this->arity == self::ARITY_UNLIMITED) {
-      $usage .= ' '. $this->name .' ['. $this->name .' ...]';
+    if (isset($this->min)) {
+      for ($i = 0; $i < $this->min; $i++) {
+        $usage .= ' <'. $this->name .'>';
+      }
+      if ($this->arity == self::ARITY_UNLIMITED) {
+        $usage .= ' [<'. $this->name .'>...]';
+      }
+      else if ($this->arity > $this->min) {
+        for ($i = $this->min; $i < $this->arity; $i++) {
+          $usage .= ' [<'. $this->name .'>]';
+        }
+      }
     }
     else {
-      for ($i = 0; $i < $this->arity; $i++) {
-        $usage .= ' '. $this->name;
+      if ($this->arity == self::ARITY_UNLIMITED) {
+        $usage .= ' <'. $this->name .'> <'. $this->name .'> ...';
+      }
+      else {
+        for ($i = 0; $i < $this->arity; $i++) {
+          $usage .= ' <'. $this->name .'>';
+        }
       }
     }
     return trim($usage);
@@ -840,13 +1015,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   private $alias = NULL;
 
   /**
-   * The minimum number of arguments expected by this option when present.
-   *
-   * @var int|null
-   */
-  private $min = NULL;
-
-  /**
    * Constructor.
    *
    * @param string $name
@@ -859,62 +1027,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   public function __construct($name, $alias = NULL, array $options = array()) {
     $options += array('alias' => $alias);
     parent::__construct($name, $options);
-  }
-
-  /**
-   * Prints inline usage information for the sample command string.
-   *
-   * @return string
-   *   Inline command usage.
-   */
-  public function printUsage() {
-    $usage = '[';
-    if ($this->alias) {
-      $usage .= '-'. $this->alias;
-    }
-    else {
-      $usage .= '--'. $this->name;
-    }
-
-    if ($this->arity == 1) {
-      $usage .= ' <'. $this->name .'>';
-    }
-    else {
-      $num_args = $this->arity;
-      if ($this->arity == self::ARITY_UNLIMITED) {
-        $num_args = 2;
-      }
-      for ($i = 0; $i < $num_args; $i++) {
-        $usage .= ' <'. $this->name . $i .'>';
-      }
-      if ($this->arity == self::ARITY_UNLIMITED) {
-        $usage .= ' ...';
-      }
-    }
-    $usage .= ']';
-    return $usage;
-  }
-
-  /**
-   * Prints help text for the option.
-   */
-  public function printHelp($indent = '') {
-    $output = $indent;
-    if ($this->name) {
-      $output .= '--'. $this->name;
-      if ($this->alias) {
-        $output .= ' | -'. $this->alias;
-      }
-    }
-    else if ($this->alias) {
-      $output .= '-'. $this->alias;
-    }
-
-    $left_len = strlen($output);
-    for ($i = 0; $i < 40 - $left_len; $i++) {
-      $output .= ' ';
-    }
-    return $output . $this->help;
   }
 
   /**
@@ -1151,26 +1263,6 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   }
 
   /**
-   * Sets the minimum number of arguments expected by this option when present.
-   *
-   * @param int $min
-   *   The minimum number of arguments expected by this option when present.
-   *
-   * @return ParParseOption
-   *   The called object.
-   */
-  public function setMin($min) {
-    if (!is_numeric($min)) {
-      throw new InvalidArgumentException('Minimum argument must be numeric.');
-    }
-    else if ($this->arity > self::ARITY_UNLIMITED && $min > $this->arity) {
-      throw new InvalidArgumentException('Minimum argument must be less than or equal to the option arity.');
-    }
-    $this->min = (int) $min;
-    return $this;
-  }
-
-  /**
    * Sets the option's data type.
    *
    * If the data type is set to 'bool' then we assume that this option
@@ -1207,6 +1299,79 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
       $this->dataType = self::DATATYPE_BOOLEAN;
     }
     return $this;
+  }
+
+  /**
+   * Prints inline usage information for the sample command string.
+   *
+   * @return string
+   *   Inline command usage.
+   */
+  public function printUsage() {
+    $usage = '[';
+    if ($this->alias) {
+      $usage .= '-'. $this->alias;
+    }
+    else {
+      $usage .= '--'. $this->name;
+      if ($this->arity == 1) {
+        if (!isset($this->min) || $this->min == 1) {
+          $usage .= '=<'. $this->name .'>';
+        }
+        else {
+          $usage .= '=[<'. $this->name .'>]';
+        }
+        return $usage . ']';
+      }
+    }
+
+    if (isset($this->min)) {
+      for ($i = 0; $i < $this->min; $i++) {
+        $usage .= ' <'. $this->name .'>';
+      }
+      if ($this->arity == self::ARITY_UNLIMITED) {
+        $usage .= ' [<'. $this->name .'>...]';
+      }
+      else if ($this->arity > $this->min) {
+        for ($i = $this->min; $i < $this->arity; $i++) {
+          $usage .= ' [<'. $this->name .'>]';
+        }
+      }
+    }
+    else {
+      if ($this->arity == self::ARITY_UNLIMITED) {
+        $usage .= ' <'. $this->name .'> <'. $this->name .'> ...';
+      }
+      else {
+        for ($i = 0; $i < $this->arity; $i++) {
+          $usage .= ' <'. $this->name .'>';
+        }
+      }
+    }
+    $usage .= ']';
+    return $usage;
+  }
+
+  /**
+   * Prints help text for the option.
+   */
+  public function printHelp($indent = '') {
+    $output = $indent;
+    if ($this->name) {
+      $output .= '--'. $this->name;
+      if ($this->alias) {
+        $output .= ' | -'. $this->alias;
+      }
+    }
+    else if ($this->alias) {
+      $output .= '-'. $this->alias;
+    }
+
+    $left_len = strlen($output);
+    for ($i = 0; $i < 40 - $left_len; $i++) {
+      $output .= ' ';
+    }
+    return $output . $this->help;
   }
 
 }
