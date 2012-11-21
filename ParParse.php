@@ -1015,6 +1015,13 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   private $alias = NULL;
 
   /**
+   * Indicates that the option is required.
+   *
+   * @var bool
+   */
+  private $required = FALSE;
+
+  /**
    * Constructor.
    *
    * @param string $name
@@ -1088,6 +1095,9 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
       else if (isset($this->alias) && strpos($args[$i], '-'. $this->alias) === 0 && strlen($args[$i]) > strlen($this->alias) + 1) {
         return $this->getValueFromArg($args, $i, '-'. $this->alias);
       }
+    }
+    if ($this->required) {
+      throw new ParParseMissingArgumentException('Missing option '. $this->name .'. '. $this->name .' is required.');
     }
     return $this->defaultValue;
   }
@@ -1302,13 +1312,36 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   }
 
   /**
+   * Sets the required status of the option.
+   *
+   * @param bool $required
+   *   Indicates whether the option is required.
+   *
+   * @return ParParseOption
+   *   The called object.
+   */
+  public function setRequired($required) {
+    if (!is_bool($required)) {
+      throw new InvalidArgumentException('Required value must be a boolean.');
+    }
+    if ($this->arity == 0 && $required) {
+      throw new InvalidArgumentException('Boolean flags cannot be required.');
+    }
+    $this->required = $required;
+    return $this;
+  }
+
+  /**
    * Prints inline usage information for the sample command string.
    *
    * @return string
    *   Inline command usage.
    */
   public function printUsage() {
-    $usage = '[';
+    $usage = '';
+    if (!$this->required) {
+      $usage .= '[';
+    }
     if ($this->alias) {
       $usage .= '-'. $this->alias;
     }
@@ -1321,7 +1354,10 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         else {
           $usage .= '=[<'. $this->name .'>]';
         }
-        return $usage . ']';
+        if (!$this->required) {
+          return $usage . ']';
+        }
+        return $usage;
       }
     }
 
@@ -1348,7 +1384,9 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         }
       }
     }
-    $usage .= ']';
+    if (!$this->required) {
+      $usage .= ']';
+    }
     return $usage;
   }
 
