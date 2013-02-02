@@ -173,11 +173,9 @@ $parser->addOption('alpha', 'a')->setDefault(FALSE)->setHelpText('A simple optio
 $parser->addFlag('charlie', 'c')->setHelpText('Foo.');
 $parser->addFlag('delta', 'd')->setHelpText('Bar.');
 
-// Alternatively, we could define the flag like this...
+// Essentially, flags are just options with an arity of 0.
+// Thus, we could also define the flag like this...
 $parser->addOption('charlie', 'c')->setArity(0)->setType('bool')->setHelpText('Foo.');
-// Or this...
-$parser->option('charlie', 'c')->arity(0)->type('bool')->help('Foo.');
-// Or a mixture of either.
 ```
 Now we parse the commands.
 ```php
@@ -212,6 +210,20 @@ $parser->addArgument('foo')
   ->setDefault(10)
   ->setValidator('validate_under_100')
   ->setHelpText('A bunch of numbers.');
+
+// Or, we could accomplish the same thing with an anonymous function.
+$parser->addArgument('foo')
+  ->setType('int')
+  ->setArity(2)
+  ->setDefault(10)
+  ->setValidator(create_function('$value', 'return $value < 100;'));
+
+// Or a lambda function (in PHP >= 5.3).
+$parser->addArgument('foo')
+  ->setType('int')
+  ->setArity(2)
+  ->setDefault(10)
+  ->setValidator(function($value) { return $value < 100; });
 ```
 
 What happens if we enter a bad number?
