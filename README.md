@@ -32,13 +32,6 @@ $parser->addArgument('foo')
   ->setValidator('my_validation_callback')
   ->setHelpText('Foo does bar.');
 
-// Or, using alternate syntax (I prefer the alternate syntaxt, see below).
-$parser->argument('foo')
-  ->type('int')
-  ->default(1)
-  ->validate('my_validation_callback')
-  ->help('Foo does bar.');
-
 $results = $parser->parse();
 ```
 We can execute this command using:
@@ -96,7 +89,7 @@ $parser->addArgument('city')
 // Setting the type to 'string' is not really necessary here since
 // all command line arguments are strings.
 $parser->addOption('alpha', 'a')
-  ->setTyoe('string')
+  ->setType('string')
   ->setDefault('')
   ->setHelpText('A simple string.');
 
@@ -204,8 +197,8 @@ false
 
 ### Argument Validation
 All command line element types available in ParParse can be validated
-using custom validation callbacks. Simply call the `setValidator()` or
-`validate()` (alternate syntax) method on the element.
+using custom validation callbacks. Simply call the `setValidator()` method
+on the element.
 
 ```php
 // The value will be passed as the indicated data type, in this case int.
@@ -278,31 +271,4 @@ Array
 1.01
 true
 false
-```
-
-#### Alternate Syntax
-The syntax demonstrated in this documentation is really only one way out
-of a few different ways to accomplish the same tasks. ParParse also supports
-short versions of all public setters. Internally, it uses a magic `__call()`
-method that simply calls `ParParseElement::setOption()` for unknown method calls.
-
-```php
-$parser = new ParParse();
-$parser->argument('foo')
-  ->arity(2)
-  ->default(array(1, 2))
-  ->validate('my_validation_callback')
-  ->type('int')
-  ->help('Foo does bar.');
-```
-
-Alternatively, you can construct a `ParParseArgument` or `ParParseOption`
-object completely separate from the `ParParse` class API and call the
-`ParParse::addElement()` method to add the element to the parser.
-
-```php
-$parser = new ParParse();
-$arg = new ParParseArgument('foo');
-$arg->setType('int')->setArity(2)->setDefault(array(1, 2))->setHelp('A couple numbers.');
-$parser->addElement($arg);
 ```
