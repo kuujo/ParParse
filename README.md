@@ -216,14 +216,16 @@ $parser->addArgument('foo')
   ->setType('int')
   ->setArity(2)
   ->setDefault(10)
-  ->setValidator(create_function('$value', 'return $value < 100;'));
+  ->setValidator(create_function('$value', 'return $value < 100;'))
+  ->setHelpText('A bunch of numbers.');
 
 // Or a lambda function (in PHP >= 5.3).
 $parser->addArgument('foo')
   ->setType('int')
   ->setArity(2)
   ->setDefault(10)
-  ->setValidator(function($value) { return $value < 100; });
+  ->setValidator(function($value) { return $value < 100; })
+  ->setHelpText('A bunch of numbers.');
 ```
 
 What happens if we enter a bad number?
