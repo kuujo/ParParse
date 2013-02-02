@@ -34,14 +34,14 @@ class ParParse {
   private $usage = NULL;
 
   /**
-   * An assiciative array of parsable element definitions, keyed by element type.
+   * An array of parsable element definitions.
    *
    * @var array
    */
   private $elements = array();
 
   /**
-   * An associative array of unique parser names. This is used to ensure
+   * An array of unique parser names. This is used to ensure element
    * machine-names are not duplicated.
    *
    * @var array
@@ -59,16 +59,6 @@ class ParParse {
   public function __construct($description = '', $usage = NULL) {
     $this->description = $description;
     $this->usage = $usage;
-  }
-
-  /**
-   * Magic method: allows calling 'add'... methods via short names.
-   */
-  public function __call($method, array $args) {
-    $method = 'add'. ucfirst($method);
-    if (method_exists($this, $method)) {
-      return call_user_func_array(array($this, $method), $args);
-    }
   }
 
   /**
@@ -107,6 +97,9 @@ class ParParse {
   /**
    * Adds a flag definition to the argument parser.
    *
+   * Note that flags are simply options with an arity of 0. Thus, we
+   * simply add and return a boolean option.
+   *
    * @param string $name
    *   The flag long name.
    * @param string|null $alias
@@ -115,7 +108,7 @@ class ParParse {
    *   An optional associative array of additional flag options.
    */
   public function addFlag($name, $alias = NULL, array $options = array()) {
-    return $this->option($name, $alias, $options)->arity(0);
+    return $this->addOption($name, $alias, $options)->arity(0);
   }
 
   /**
@@ -196,13 +189,18 @@ class ParParse {
     }
     catch (ParParseException $e) {
       echo $e->getMessage() . "\n\n";
-      $this->printHelp($command, $e);
-      exit(1);
+      exit($this->printHelp($command));
     }
   }
 
   /**
    * Prints command-line help text.
+   *
+   * @param string $command
+   *   The base string used to execute the command.
+   *
+   * @return string
+   *   A help text string.
    */
   private function printHelp($command) {
     if (!is_null($this->usage)) {
@@ -242,13 +240,13 @@ class ParParse {
     foreach ($options as $option) {
       $help[] = $option->printHelp($indent) . "\n";
     }
-    echo implode('', $help);
+    return implode('', $help);
   }
 
 }
 
 /**
- * Interface for parsable elements.
+ * Base interface for parsable elements.
  *
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
@@ -296,6 +294,8 @@ interface ParParseElementInterface {
 
 /**
  * Interface for positional arguments.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 interface ParParseArgumentInterface extends ParParseElementInterface {
 
@@ -316,6 +316,8 @@ interface ParParseArgumentInterface extends ParParseElementInterface {
 
 /**
  * Interface for optional arguments.
+ *
+ * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 interface ParParseOptionInterface extends ParParseElementInterface {
 
@@ -448,19 +450,6 @@ abstract class ParParseElement implements ParParseElementInterface {
   }
 
   /**
-   * Magic method: Calls setter methods for internal attributes.
-   */
-  public function __call($method, $args) {
-    if (method_exists($this, 'set'. $method)) {
-      return $this->setOption($method, $args[0]);
-    }
-    else if (method_exists($this, 'add'. $method)) {
-      return call_user_func_array(array($this, 'add'. $method), $args);
-    }
-    throw new InvalidArgumentException('Invalid method '. $method .'.');
-  }
-
-  /**
    * Magic method: Gets an arbitrary element option.
    */
   public function __get($option) {
@@ -557,6 +546,8 @@ abstract class ParParseElement implements ParParseElementInterface {
 
   /**
    * Alias for ParParseElement::setHelp().
+   *
+   * @see ParParseElement::setHelp()
    */
   public function setHelpText($help) {
     return $this->setHelp($help);
@@ -585,7 +576,7 @@ abstract class ParParseElement implements ParParseElementInterface {
    * @param int $min
    *   The minimum number of arguments expected by this option when present.
    *
-   * @return ParParseOption
+   * @return ParParseElement
    *   The called object.
    */
   public function setMin($min) {
@@ -681,22 +672,9 @@ abstract class ParParseElement implements ParParseElementInterface {
    * @return ParParseElement
    *   The called object.
    */
-  public function setValidate($callback) {
+  public function setValidator($callback) {
     $this->validator = $callback;
     return $this;
-  }
-
-  /**
-   * Convenience alias for setting validators.
-   *
-   * @param string $validator
-   *   The validator callback.
-   *
-   * @return ParParseElement
-   *   The called object.
-   */
-  public function setValidator($callback) {
-    return $this->setValidate($callback);
   }
 
   /**
@@ -721,7 +699,12 @@ abstract class ParParseElement implements ParParseElementInterface {
 }
 
 /**
- * Represents an argument.
+ * Represents a positional argument.
+ *
+ * Positional arguments, unlike other arguments, have no prefix ("-") and are located
+ * purely by their position in the command line arguments array. While positional
+ * arguments may have arities, only the last positional argument may have an unlimited
+ * arity or a default value for logical reasons.
  *
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
@@ -731,9 +714,13 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
    * Parses positional arguments from command-line arguments.
    *
    * @param array $args
-   *   An array of command-line arguments.
+   *   An array of command-line arguments. This argument is passed by reference.
    * @param bool $last_arg
-   *   Indicates whether this is the last positional argument.
+   *   Indicates whether this is the last positional argument. This is relevant in
+   *   that the last positional argument may have default values applied. Alternatively,
+   *   it would be logically impossible to apply default values to positional arguments
+   *   that are not the last argument due to the fact that one cannot programmatically
+   *   determine which positional argument is missing.
    *
    * @return mixed
    *   The argument value.
@@ -742,7 +729,9 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
     $args = array_values($args);
     $num_args = count($args);
 
-    // Get only valid arguments to validate that the proper arguments exist.
+    // Get only valid positional arguments from the $args array. This means all the
+    // positional arguments (not prefixed by "-") up until the first option/flag or
+    // the end of the array, whichever comes first.
     $valid_args = array();
     foreach ($args as $arg) {
       if (strpos($arg, '-') === 0) {
@@ -754,8 +743,9 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
     // Ensure the correct number of arguments even exist.
     // Default values can only be applied to the last positional argument definition.
     // If the argument's default value is not an array then that default value
-    // will be applied up to the arity number. If the default value is an array then
-    // it *must* have the same number of values as the arity in order to work properly.
+    // will be applied to each argument up to the arity number. However, if the default
+    // value is an array then it *must* have the same number of values as the arity in
+    // order to work properly.
     $num_valid_args = count($valid_args);
     if (($num_valid_args === 0 || $num_valid_args < $this->arity) && (!$last_arg || !$this->hasDefault || (is_array($this->defaultValue) && count($this->defaultValue) < $this->arity))) {
       throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->arity .' argument(s) expected.');
@@ -765,6 +755,7 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
     }
 
     switch ($this->arity) {
+      // Arguments with an arity of 1.
       case 1:
         for ($i = 0; $i < $num_args; $i++) {
           if (strpos($args[$i], '-') === 0) {
@@ -782,7 +773,11 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
         else {
           throw new ParParseMissingArgumentException('Missing argument '. $this->name .'. '. $this->name .' expects at least '. $this->min .' argument(s).');
         }
+      // Arguments with an arity of greater than one or unlimited.
+      // Note that unlimited arguments should only occur at the
+      // end of the command line arguments string.
       default:
+        // Create an array of defaults values.
         $values = array();
         if (is_array($this->defaultValue)) {
           $values = $this->defaultValue;
@@ -818,7 +813,7 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
   }
 
   /**
-   * Prints inline usage information for the sample command string.
+   * Returns inline usage information for the sample command string.
    *
    * @return string
    *   Inline command usage.
@@ -852,7 +847,10 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
   }
 
   /**
-   * Prints help text for the argument.
+   * Returns help text for the argument.
+   *
+   * @param string $indent
+   *   The base indent string for the help text.
    *
    * @return string
    *   A help text string.
@@ -869,18 +867,16 @@ class ParParseArgument extends ParParseElement implements ParParseArgumentInterf
 }
 
 /**
- * Represents an option - prefixed with -- or -.
+ * Represents an option.
+ *
+ * Options are prefixed with either "--" or "-" depending on whether the
+ * short or long option is being used. Options can be used as either boolean
+ * flags - with a value being applied when the option is present - or define
+ * a value using either the -<short> <value> or --<long>=<value> format.
  *
  * @author Jordan Halterman <jordan.halterman@gmail.com>
  */
 class ParParseOption extends ParParseElement implements ParParseOptionInterface {
-
-  /**
-   * Indicates that no name should be used.
-   *
-   * @var null
-   */
-  const NAME_NONE = NULL;
 
   /**
    * The option's short alias. Defaults to NULL.
@@ -915,10 +911,11 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    * Parses options from command-line arguments.
    *
    * @param array $args
-   *   An array of command-line arguments.
+   *   An array of command line arguments. This argument is passed by reference.
    *
    * @return mixed
-   *   The option value, or default value if the option wasn't found.
+   *   The option value, parsed from command line arguments.
+   *   May return the default value if the argument was not found.
    */
   public function parse(array &$args) {
     $num_args = count($args);
@@ -932,6 +929,12 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
 
   /**
    * Parses command line arguments as a boolean flag.
+   *
+   * @param array $args
+   *   An array of command line arguments. This argument is passed by reference.
+   *
+   * @return bool
+   *   The flag value, parsed from command line arguments.
    */
   private function parseFlag(array &$args) {
     $num_args = count($args);
@@ -954,6 +957,12 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
 
   /**
    * Parses command line arguments for option with values.
+   *
+   * @param array $args
+   *   An array of command line arguments. This argument is passed by reference.
+   *
+   * @return mixed
+   *   The option value, parsed from command line arguments.
    */
   private function parseOption(array &$args) {
     $num_args = count($args);
@@ -982,7 +991,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    * in cases where an equals sign was used for the option value.
    *
    * @param array $args
-   *   An array of command line arguments.
+   *   An array of command line arguments. This argument is passed by reference.
    * @param int $position
    *   The position of this argument.
    * @param string $prefix
@@ -996,10 +1005,12 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     unset($args[$position]);
     $value = substr($arg, strlen($prefix));
     $min = isset($this->min) ? $this->min : $this->arity;
+
     // If the arity is greater than one then return this as an array.
     if ($this->arity == self::ARITY_UNLIMITED || $this->arity > 1) {
       $values = array_map('trim', explode(',', trim($value, '"')));
 
+      // Create an array of default values for multiple argument options.
       $defaults = array();
       if (is_array($this->defaultValue)) {
         $defaults = $this->defaultValue;
@@ -1010,10 +1021,12 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         }
       }
 
+      // Loop through available values and apply data types.
       foreach ($values as $key => $value) {
         $values[$key] = $this->applyDataType($value);
       }
 
+      // Ensure that the minimum number of arguments were provided.
       if (count($values) < $this->arity) {
         $values = array_values($values) + array_values($defaults);
         if (count($values) < $this->arity) {
@@ -1032,7 +1045,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
    * Attempts to get the option value from the next command line argument.
    *
    * @param array $args
-   *   An array of command line arguments.
+   *   An array of command line arguments. This argument is passed by reference.
    * @param int $position
    *   The position of this option in arguments.
    *
@@ -1043,6 +1056,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
     $next = $position+1;
     $min = isset($this->min) ? $this->min : $this->arity;
 
+    // Create an array of default values for multiple argument options.
     $defaults = array();
     if (is_array($this->defaultValue)) {
       $defaults = $this->defaultValue;
@@ -1068,7 +1082,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
         return $this->applyDataType($value);
       }
     }
-    // If this argument has unlimited arity then get all valid
+    // Otherwise, if this argument has unlimited arity then get all valid
     // arguments up to the next option.
     else if ($this->arity == self::ARITY_UNLIMITED) {
       $values = array();
@@ -1091,8 +1105,9 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
       unset($args[$position]);
       return $values;
     }
+    // Otherwise, this argument has a specified arity that is greater than
+    // one. Get all values up to the next argument or the arity is reached.
     else {
-      // First get all the values up to the next argument or the arity is reached.
       $values = array();
       for ($i = $next; $i < $next + $this->arity; $i++) {
         if (!isset($args[$i]) || strpos($args[$i], '-') === 0) {
@@ -1207,7 +1222,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   }
 
   /**
-   * Prints inline usage information for the sample command string.
+   * Returns inline usage information for the sample command string.
    *
    * @return string
    *   Inline command usage.
@@ -1266,7 +1281,7 @@ class ParParseOption extends ParParseElement implements ParParseOptionInterface 
   }
 
   /**
-   * Prints help text for the option.
+   * Returns help text for the option.
    */
   public function printHelp($indent = '') {
     $output = $indent;
