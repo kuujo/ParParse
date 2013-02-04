@@ -76,7 +76,7 @@ as normal arguments or with commas `--foo=1,2,3`.
 
 #### Examples
 
-`myscript.php la ny -a bar -b 1 2 -foo=bar,baz`
+`myscript.php la ny -a bar -b 1 2 --foo=bar,baz`
 
 ```php
 $parser = new ParParse();
